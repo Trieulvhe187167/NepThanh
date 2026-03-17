@@ -1,0 +1,55 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Tìm kiếm</label>
+            <input name="q" value="{{ query_text }}" placeholder="Mã đơn / email / số điện thoại" />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="" {% if not status_filter %}selected{% endif %}>Tất cả</option>
+                {% for st in statuses %}
+                <option value="{{ st }}" {% if status_filter == st %}selected{% endif %}>{{ st }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-secondary" type="submit">Lọc</button>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <a class="btn btn-primary" href="{{ url_for('admin_order_new') }}">Tạo đơn</a>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Mã đơn</th>
+                <th>Khách hàng</th>
+                <th>Tổng</th>
+                <th>Trạng thái</th>
+                <th>Ngày tạo</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for order in orders %}
+            <tr>
+                <td>{{ order.order_number }}</td>
+                <td>{{ order.recipient_name or order.user_email or order.email }}</td>
+                <td>{{ "{:,}".format(order.total) }} ₫</td>
+                <td>{{ order.status }}</td>
+                <td>{{ order.created_at }}</td>
+                <td><a class="btn btn-secondary" href="{{ url_for('admin_order_detail', order_id=order.id) }}">Xem</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">Chưa có đơn.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/admin.css') }}" />
+</head>
+<body class="admin">
+    <div class="admin-shell">
+        <aside class="admin-sidebar">
+            <div class="admin-brand">Nếp Thanh Admin</div>
+            <nav class="admin-nav">
+                <a href="{{ url_for('admin_dashboard') }}" class="{% if section == 'dashboard' %}active{% endif %}">Tổng quan</a>
+                <a href="{{ url_for('admin_products') }}" class="{% if section == 'products' %}active{% endif %}">Sản phẩm</a>
+                <a href="{{ url_for('admin_orders') }}" class="{% if section == 'orders' %}active{% endif %}">Đơn hàng</a>
+                <a href="{{ url_for('admin_customers') }}" class="{% if section == 'customers' %}active{% endif %}">Khách hàng</a>
+                <a href="{{ url_for('admin_inventory') }}" class="{% if section == 'inventory' %}active{% endif %}">Kho</a>
+                <a href="{{ url_for('admin_banners') }}" class="{% if section == 'content' %}active{% endif %}">Nội dung</a>
+                <a href="{{ url_for('admin_coupons') }}" class="{% if section == 'marketing' %}active{% endif %}">Marketing</a>
+                <a href="{{ url_for('admin_qr') }}" class="{% if section == 'qr' %}active{% endif %}">QR / Nhân vật</a>
+                <a href="{{ url_for('admin_reports') }}" class="{% if section == 'reports' %}active{% endif %}">Báo cáo</a>
+                <a href="{{ url_for('admin_settings') }}" class="{% if section == 'settings' %}active{% endif %}">Cài đặt</a>
+                <a href="{{ url_for('admin_users') }}" class="{% if section == 'users' %}active{% endif %}">Phân quyền</a>
+            </nav>
+            <div class="admin-sidebar-footer">
+                <div>{{ current_user.full_name or current_user.email }}</div>
+                <div class="muted">Role: {{ current_user.role }}</div>
+            </div>
+        </aside>
+        <div class="admin-main">
+            <div class="admin-topbar">
+                <div class="admin-title">
+                    <h1>{{ title }}</h1>
+                    {% if subtitle %}<p>{{ subtitle }}</p>{% endif %}
+                </div>
+                <div class="admin-actions">
+                    <a href="{{ url_for('home') }}" class="btn btn-secondary">Xem site</a>
+                    <a href="{{ url_for('admin_logout') }}" class="btn btn-secondary">Đăng xuất</a>
+                </div>
+            </div>
+            {% block content %}{% endblock %}
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,50 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tên danh mục</label>
+            <input name="name" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Mô tả</label>
+            <textarea name="description"></textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Thêm danh mục</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tên</th>
+                <th>Slug</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cat in categories %}
+            <tr>
+                <td>{{ cat.name }}</td>
+                <td>{{ cat.slug }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_category_delete', category_id=cat.id) }}" onsubmit="return confirm('Xóa danh mục?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="muted">Chưa có danh mục.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

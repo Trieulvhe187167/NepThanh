@@ -1,0 +1,52 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Tìm kiếm</label>
+            <input name="q" value="{{ query_text }}" placeholder="Email / tên" />
+        </div>
+        <div class="form-group">
+            <label>Nhóm</label>
+            <select name="group">
+                <option value="" {% if not group_filter %}selected{% endif %}>Tất cả</option>
+                <option value="VIP" {% if group_filter == 'VIP' %}selected{% endif %}>VIP</option>
+                <option value="new" {% if group_filter == 'new' %}selected{% endif %}>Mới</option>
+                <option value="return" {% if group_filter == 'return' %}selected{% endif %}>Quay lại</option>
+            </select>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-secondary" type="submit">Lọc</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Khách hàng</th>
+                <th>Nhóm</th>
+                <th>Đơn</th>
+                <th>Tổng chi</th>
+                <th>Trạng thái</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for customer in customers %}
+            <tr>
+                <td>{{ customer.full_name or customer.email }}</td>
+                <td>{{ customer.customer_group or '-' }}</td>
+                <td>{{ customer.order_count }}</td>
+                <td>{{ "{:,}".format(customer.total_spent) }} ₫</td>
+                <td>{% if customer.is_blocked %}<span class="badge danger">Đã khóa</span>{% else %}<span class="badge success">Hoạt động</span>{% endif %}</td>
+                <td><a class="btn btn-secondary" href="{{ url_for('admin_customer_detail', user_id=customer.id) }}">Xem</a></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">Chưa có khách hàng.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

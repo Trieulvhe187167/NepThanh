@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+
+{% block hero %}
+<div class="page-header product-page-header">
+    <h1>Sản phẩm</h1>
+    <p>Khám phá bộ sưu tập thời trang văn hóa Việt</p>
+    
+    <div class="product-search-bar">
+        <form action="{{ url_for('product_list') }}" method="GET" class="search-form">
+            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+            <input type="text" name="q" placeholder="Tìm kiếm sản phẩm, nhân vật..." value="{{ request.args.get('q', '') }}">
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="product-layout container mb-4">
+    <!-- Sidebar / Filters -->
+    <aside class="product-sidebar">
+        <div class="sidebar-box">
+            <h3 class="filter-title">Bộ lọc</h3>
+            
+            <div class="filter-group">
+                <h4 class="filter-subtitle">Nhân vật</h4>
+                <ul class="filter-list">
+                    {% for char in characters %}
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="character" value="{{ char.slug }}" {% if char.slug in request.args.getlist('character') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            {{ char.name }}
+                        </label>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+            
+            <hr class="filter-divider">
+            
+            <div class="filter-group">
+                <h4 class="filter-subtitle">Kích thước</h4>
+                <ul class="filter-list">
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="size" value="s" {% if 's' in request.args.getlist('size') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            S
+                        </label>
+                    </li>
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="size" value="m" {% if 'm' in request.args.getlist('size') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            M
+                        </label>
+                    </li>
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="size" value="l" {% if 'l' in request.args.getlist('size') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            L
+                        </label>
+                    </li>
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="size" value="xl" {% if 'xl' in request.args.getlist('size') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            XL
+                        </label>
+                    </li>
+                    <li>
+                        <label class="custom-checkbox">
+                            <input type="checkbox" name="size" value="xxl" {% if 'xxl' in request.args.getlist('size') %}checked{% endif %}>
+                            <span class="checkmark"></span>
+                            XXL
+                        </label>
+                    </li>
+                </ul>
+            </div>
+            
+            <a href="{{ url_for('product_list') }}" class="btn-outline btn-block mt-3">Xóa bộ lọc</a>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="product-main">
+        <div class="product-results-header">
+            <p class="results-count">Tìm thấy <strong>{{ products|length }}</strong> sản phẩm</p>
+        </div>
+        
+        <div class="grid product-grid" id="product-grid-container">
+            {% include 'partials/product_grid.html' %}
+        </div>
+    </div>
+</div>
+
+<script>
+    const filterProducts = () => {
+        const url = new URL(window.location.href);
+        const searchParams = new URL(url.search, "http://localhost").searchParams;
+        
+        // Remove all character/size params first to add the new checked ones
+        searchParams.delete('character');
+        searchParams.delete('size');
+        
+        // Add currently checked params
+        document.querySelectorAll('.custom-checkbox input:checked').forEach(checkedBox => {
+            searchParams.append(checkedBox.name, checkedBox.value);
+        });
+        
+        // Update Search input to param if exists
+        const q = document.querySelector('.search-form input').value.trim();
+        if (q) searchParams.set('q', q);
+        else searchParams.delete('q');
+
+        // Form new URL and update history
+        const newUrlParam = searchParams.toString();
+        const newUrl = newUrlParam ? `${url.pathname}?${newUrlParam}` : url.pathname;
+        
+        window.history.pushState({path: newUrl}, '', newUrl);
+
+        // Fetch partial
+        fetch(newUrl, {
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+        .then(response => response.text())
+        .then(html => {
+            document.getElementById('product-grid-container').innerHTML = html;
+            // Update counter manually based on cards in HTML
+            const doc = new DOMParser().parseFromString(html, 'text/html');
+            const count = doc.querySelectorAll('article.shop-card').length;
+            const countEl = document.querySelector('.results-count strong');
+            if(countEl) countEl.textContent = count;
+        })
+        .catch(err => console.error("Filter error: ", err));
+    };
+
+    // Listeners for checkboxes
+    document.querySelectorAll('.custom-checkbox input').forEach(checkbox => {
+        checkbox.addEventListener('change', filterProducts);
+    });
+
+    // Listener for search input with debounce
+    let typingTimer;
+    const searchInput = document.querySelector('.search-form input');
+    
+    // Override form submit
+    document.querySelector('.search-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        filterProducts();
+    });
+
+    searchInput.addEventListener('input', () => {
+        clearTimeout(typingTimer);
+        typingTimer = setTimeout(filterProducts, 500); // Wait 500ms after last stroke
+    });
+    
+    // Back forward history
+    window.addEventListener('popstate', () => {
+        window.location.reload();
+    });
+</script>
+{% endblock %}

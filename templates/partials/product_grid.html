@@ -1,0 +1,26 @@
+{% for product in products %}
+<article class="shop-card">
+    <div class="shop-card-image">
+        <a href="{{ url_for('product_detail', slug=product.slug) }}">
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" loading="lazy" />
+        </a>
+    </div>
+    <div class="shop-card-body">
+        <h3><a href="{{ url_for('product_detail', slug=product.slug) }}" class="product-title-link">{{ product.name }}</a></h3>
+        <p class="product-excerpt">{{ product.short_description[:100] }}{% if product.short_description|length > 100 %}...{% endif %}</p>
+        
+        <div class="shop-card-footer">
+            <span class="price">{{ "{:,}".format(product.price) }} ₫</span>
+            <a href="{{ url_for('product_detail', slug=product.slug) }}" class="btn-add-cart">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="cart-icon"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
+                Thêm
+            </a>
+        </div>
+    </div>
+</article>
+{% else %}
+<div class="no-products">
+    <p>Không tìm thấy sản phẩm nào phù hợp với bộ lọc.</p>
+    <a href="{{ url_for('product_list') }}" class="btn-outline">Xóa bộ lọc</a>
+</div>
+{% endfor %}

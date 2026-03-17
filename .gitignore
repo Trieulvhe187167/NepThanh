@@ -1,0 +1,6 @@
+.env
+.venv/
+__pycache__/
+.qodo/
+data/nepthanh.db
+data/chroma_store/

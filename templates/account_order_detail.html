@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-page">
+    <h1>Đơn hàng {{ order.order_number }}</h1>
+    <div class="account-layout">
+        <div class="account-block">
+            <h2>Thông tin giao hàng</h2>
+            <p>Trạng thái đơn: <span class="status-pill">{{ order.status }}</span></p>
+            <p>Trạng thái thanh toán: <span class="status-pill">{{ order.payment_status }}</span></p>
+            <p>Người nhận: {{ order.recipient_name }}</p>
+            <p>SĐT: {{ order.phone }}</p>
+            <p>Địa chỉ: {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+            {% if order.tracking_code %}
+            <p>Mã vận đơn: <strong>{{ order.tracking_code }}</strong></p>
+            <p>Đơn vị vận chuyển: {{ order.shipping_provider or '-' }}</p>
+            {% else %}
+            <p class="field-hint">Chưa có mã vận đơn.</p>
+            {% endif %}
+        </div>
+
+        <div class="account-block">
+            <h2>Chi tiết đơn</h2>
+            {% for item in items %}
+            <p><span>{{ item.product_name }} ({{ item.variant_label or '-' }}) x{{ item.qty }}</span> - <strong>{{ "{:,}".format(item.total_price) }} ₫</strong></p>
+            {% endfor %}
+            <hr />
+            <p>Tạm tính: {{ "{:,}".format(order.subtotal) }} ₫</p>
+            <p>Giảm giá: {{ "{:,}".format(order.discount_amount) }} ₫</p>
+            <p>Vận chuyển: {{ "{:,}".format(order.shipping_fee) }} ₫</p>
+            <p><strong>Tổng: {{ "{:,}".format(order.total) }} ₫</strong></p>
+        </div>
+    </div>
+
+    <div class="account-block" style="margin-top: 1rem;">
+        <h2>Lịch sử trạng thái</h2>
+        <ul class="timeline-list">
+            {% for event in events %}
+            <li>
+                <strong>{{ event.status }}</strong> - {{ event.created_at }}
+                {% if event.note %}<div class="field-hint">{{ event.note }}</div>{% endif %}
+            </li>
+            {% else %}
+            <li class="field-hint">Chưa có cập nhật.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</section>
+{% endblock %}

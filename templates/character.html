@@ -1,0 +1,1079 @@
+﻿{% extends "base.html" %}
+
+{% block content %}
+{% if from_qr %}
+<div class="flash-stack">
+    <div class="flash-message success">
+        Bạn vừa mở khóa nhân vật {{ character.name }}{% if qr_token %} (token: {{ qr_token }}){% endif %}.
+    </div>
+</div>
+{% endif %}
+
+<article class="character-experience" data-character-experience>
+    <section class="character-story-layout">
+        <div class="character-visual-panel">
+            <div class="character-visual-shell" data-character-viewer>
+                <div class="character-back-glow" aria-hidden="true"></div>
+                <div class="character-sparkles" aria-hidden="true"></div>
+                <div class="character-greeting-bubble" aria-hidden="true">Xin chào!</div>
+                <div class="character-figure-3d">
+                    {% if character.intro_video %}
+                    <video class="character-intro-video" data-character-intro-video muted playsinline preload="auto"
+                        {% if character.image %}poster="{{ url_for('static', filename=character.image) }}"{% endif %}>
+                        <source src="{{ url_for('static', filename=character.intro_video) }}" type="video/mp4" />
+                    </video>
+                    <canvas class="character-intro-canvas" data-character-intro-canvas aria-hidden="true"></canvas>
+                    {% endif %}
+                    <div class="character-figure-fallback{% if character.intro_video %} is-hidden{% endif %}"
+                        data-character-fallback>
+                        {% if character.asset_type == "model" %}
+                        <model-viewer src="{{ url_for('static', filename=character.asset_path) }}" alt="{{ character.name }}"
+                            camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="1"
+                            exposure="1.05" interaction-prompt="none" touch-action="pan-y">
+                        </model-viewer>
+                        {% else %}
+                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="character-intro-start is-hidden" data-intro-start aria-hidden="true">
+                    <p class="character-intro-start-copy">Chạm để bắt đầu intro có tiếng</p>
+                    <button type="button" class="character-intro-start-button" data-intro-start-button>
+                        Bắt đầu
+                    </button>
+                </div>
+                <div class="character-floor-shadow" aria-hidden="true"></div>
+            </div>
+        </div>
+
+        <div class="character-content-panel">
+            <p class="character-kicker">Hành trình di sản</p>
+            <h1 class="typewriter-line typewriter-name" data-type-target="name"></h1>
+            <p class="typewriter-line typewriter-nickname" data-type-target="nickname"></p>
+
+            <div class="character-info-grid" data-reveal="info">
+                <article class="character-info-card">
+                    <span class="character-info-label">Xuất xứ</span>
+                    <p>{{ character.origin or "Đang cập nhật nguồn gốc nhân vật." }}</p>
+                </article>
+                <article class="character-info-card">
+                    <span class="character-info-label">Biểu tượng</span>
+                    <p>{{ character.symbol or "Đang cập nhật biểu tượng đại diện." }}</p>
+                </article>
+                <article class="character-info-card">
+                    <span class="character-info-label">Tính cách</span>
+                    <p>{{ character.personality or "Đang cập nhật sắc thái tính cách." }}</p>
+                </article>
+            </div>
+
+            <section class="character-story-card">
+                <div class="character-section-head">
+                    <span class="character-section-line"></span>
+                    <span>Câu chuyện</span>
+                </div>
+                <p class="typewriter-story" data-type-target="story"></p>
+            </section>
+
+            <section class="character-role-card" data-reveal="role">
+                <div class="character-section-head">
+                    <span class="character-section-line"></span>
+                    <span>Vai trò</span>
+                </div>
+                <p>{{ character.role or "Người lưu giữ nét đẹp dân gian Việt Nam." }}</p>
+            </section>
+
+            <section class="character-player-card" data-reveal="player" hidden>
+                <div class="character-section-head">
+                    <span class="character-section-line"></span>
+                    <span>Giai điệu ngũ cung</span>
+                </div>
+                <div class="pentatonic-player" data-player>
+                    <div class="player-topline">
+                        <div>
+                            <h2 class="player-title" data-track-title></h2>
+                            <p class="player-subtitle" data-track-description></p>
+                        </div>
+                        <div class="player-visualizer" aria-hidden="true">
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                            <span></span>
+                        </div>
+                    </div>
+                    <div class="player-progress">
+                        <div class="player-progress-bar">
+                            <span data-progress-fill></span>
+                        </div>
+                        <div class="player-progress-meta">
+                            <span data-progress-current>0:00</span>
+                            <span data-progress-total>0:00</span>
+                        </div>
+                    </div>
+                    <div class="player-controls">
+                        <button type="button" class="player-control primary" data-player-toggle>Play</button>
+                        <button type="button" class="player-control" data-player-mute>Mute</button>
+                        <label class="player-volume">
+                            <span>Volume</span>
+                            <input type="range" min="0" max="100" value="72" data-player-volume />
+                        </label>
+                    </div>
+                    <p class="player-status" data-player-status></p>
+                    {% if character.audio_url %}
+                    <a class="player-source-link" href="{{ url_for('static', filename=character.audio_url) }}" target="_blank"
+                        rel="noopener">
+                        Nghe bản thu gốc
+                    </a>
+                    {% endif %}
+                </div>
+            </section>
+        </div>
+    </section>
+
+    {% set related = namespace(items=[]) %}
+    {% for product in products if product.character_id == character.id %}
+    {% set _ = related.items.append(product) %}
+    {% endfor %}
+    {% if related.items %}
+    <section class="character-related">
+        <div class="character-section-head">
+            <span class="character-section-line"></span>
+            <span>Sản phẩm gắn với nhân vật</span>
+        </div>
+        <div class="related-grid">
+            {% for product in related.items %}
+            <a href="{{ url_for('product_detail', slug=product.slug) }}" class="related-chip">
+                {{ product.name }}
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="character-network">
+        <div class="character-network-head">
+            <div>
+                <p class="character-kicker">Khám phá tiếp</p>
+                <h2>Nhân vật khác</h2>
+            </div>
+            <p>Chọn một avatar để chuyển nhân vật và reset toàn bộ animation.</p>
+        </div>
+        <div class="character-avatar-list">
+            {% for item in characters if item.slug != character.slug %}
+            <a href="{{ url_for('character_page', slug=item.slug) }}" class="character-avatar-link">
+                <span class="character-avatar-frame">
+                    <img src="{{ url_for('static', filename=item.image) }}" alt="{{ item.name }}" />
+                </span>
+                <span class="character-avatar-name">{{ item.name }}</span>
+                <span class="character-avatar-nickname">{{ item.nickname or "Khám phá câu chuyện" }}</span>
+            </a>
+            {% endfor %}
+        </div>
+    </section>
+</article>
+
+<script id="character-detail-data" type="application/json">
+    {{ {
+        "slug": character.slug,
+        "name": character.name,
+        "nickname": character.nickname or ("Biệt danh của " ~ character.name),
+        "story": character.story_text or character.description or character.bio or "Câu chuyện của nhân vật đang được cập nhật.",
+        "role": character.role or "Người lưu giữ nét đẹp dân gian Việt Nam.",
+        "audioUrl": character.audio_url or "",
+        "introVideoUrl": character.intro_video or ""
+    } | tojson }}
+</script>
+
+<script>
+    (function () {
+        var root = document.querySelector("[data-character-experience]");
+        var payloadNode = document.getElementById("character-detail-data");
+        if (!root || !payloadNode) {
+            return;
+        }
+
+        var payload = JSON.parse(payloadNode.textContent);
+        var viewer = root.querySelector("[data-character-viewer]");
+        var sparkles = root.querySelector(".character-sparkles");
+        var introVideo = root.querySelector("[data-character-intro-video]");
+        var introCanvas = root.querySelector("[data-character-intro-canvas]");
+        var introCanvasContext = introCanvas && introCanvas.getContext ? introCanvas.getContext("2d", { willReadFrequently: true }) : null;
+        var introStartGate = root.querySelector("[data-intro-start]");
+        var introStartButton = root.querySelector("[data-intro-start-button]");
+        var fallbackFigure = root.querySelector("[data-character-fallback]");
+        var nameEl = root.querySelector('[data-type-target="name"]');
+        var nicknameEl = root.querySelector('[data-type-target="nickname"]');
+        var storyEl = root.querySelector('[data-type-target="story"]');
+        var infoGrid = root.querySelector('[data-reveal="info"]');
+        var roleCard = root.querySelector('[data-reveal="role"]');
+        var playerCard = root.querySelector('[data-reveal="player"]');
+        var prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var introCanvasFrameId = 0;
+        var introCanvasEnabled = false;
+        var introStartPromise = null;
+        var introStartResolved = false;
+
+        var musicPresets = {
+            "chang-khen": {
+                title: "G pentatonic sáng",
+                description: "Âm sắc thoáng đãng, nhịp bước như gió núi và tiếng khèn gọi bạn đường.",
+                notes: [196.00, 220.00, 246.94, 293.66, 329.63, 392.00],
+                melody: [
+                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1.5 },
+                    { note: 2, beats: 0.5 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 2, beats: 1.5 },
+                    { note: 4, beats: 0.5 }, { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 },
+                    { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 84,
+                waveform: "triangle"
+            },
+            "co-quan-ho": {
+                title: "F pentatonic dịu",
+                description: "Mềm và lơi, như một câu hát đối đáp trên bến nước ngày hội.",
+                notes: [174.61, 196.00, 220.00, 261.63, 293.66, 349.23],
+                melody: [
+                    { note: 0, beats: 1.5 }, { note: 2, beats: 0.5 }, { note: 3, beats: 1.5 }, { note: 2, beats: 0.5 },
+                    { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 4, beats: 1.5 },
+                    { note: 3, beats: 0.5 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 72,
+                waveform: "sine"
+            },
+            "co-cheo": {
+                title: "D pentatonic sân khấu",
+                description: "Rộn nhịp, sáng rõ và có độ bật như tiếng phách mở màn chèo cổ.",
+                notes: [146.83, 164.81, 196.00, 220.00, 246.94, 293.66],
+                melody: [
+                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1 },
+                    { note: 3, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 3, beats: 1 },
+                    { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 }, { note: 1, beats: 1 },
+                    { note: 0, beats: 2 }
+                ],
+                tempo: 96,
+                waveform: "triangle"
+            },
+            "nang-then": {
+                title: "A pentatonic huyền ảo",
+                description: "Bay nhẹ, ngân dài như lời Then dẫn lối giữa trăng và núi.",
+                notes: [110.00, 130.81, 146.83, 164.81, 196.00, 220.00],
+                melody: [
+                    { note: 0, beats: 2 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 2 },
+                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 },
+                    { note: 2, beats: 1 }, { note: 4, beats: 1 }, { note: 5, beats: 2 }, { note: 4, beats: 2 }
+                ],
+                tempo: 68,
+                waveform: "sine"
+            },
+            "chu-xam": {
+                title: "E pentatonic phố chợ",
+                description: "Mộc và ngân, có độ rung như tiếng xẩm giữa nhịp đời cũ.",
+                notes: [164.81, 185.00, 220.00, 246.94, 277.18, 329.63],
+                melody: [
+                    { note: 0, beats: 1.5 }, { note: 2, beats: 0.5 }, { note: 3, beats: 1 }, { note: 2, beats: 1 },
+                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 2, beats: 1.5 }, { note: 4, beats: 0.5 },
+                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 76,
+                waveform: "square"
+            },
+            "be-roi": {
+                title: "C pentatonic trong trẻo",
+                description: "Vui và tung tẩy như mặt nước gợn sáng khi con rối vừa xuất hiện.",
+                notes: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63],
+                melody: [
+                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 5, beats: 1 },
+                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 0, beats: 1 }, { note: 1, beats: 1 },
+                    { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 92,
+                waveform: "triangle"
+            },
+            "anh-hai": {
+                title: "Bb pentatonic hội làng",
+                description: "Ấm và chắc nhịp, gợi không khí giao đãi của sân đình ngày hội.",
+                notes: [116.54, 130.81, 146.83, 174.61, 196.00, 233.08],
+                melody: [
+                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1.5 },
+                    { note: 3, beats: 0.5 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 1, beats: 1 },
+                    { note: 3, beats: 1 }, { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 },
+                    { note: 1, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 88,
+                waveform: "triangle"
+            }
+        };
+
+        function defaultPreset(name) {
+            return {
+                title: "Ngũ cung dân gian",
+                description: "Một vòng giai điệu ngũ cung nhẹ, dựng riêng cho " + name + ".",
+                notes: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63],
+                melody: [
+                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1 },
+                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
+                ],
+                tempo: 80,
+                waveform: "triangle"
+            };
+        }
+
+        function wait(ms) {
+            return new Promise(function (resolve) {
+                window.setTimeout(resolve, ms);
+            });
+        }
+
+        function typeText(element, text, speed) {
+            var content = (text || "").trim();
+            if (!content) {
+                return Promise.resolve();
+            }
+            element.classList.add("is-typing");
+            element.textContent = "";
+            return new Promise(function (resolve) {
+                var index = 0;
+                function step() {
+                    element.textContent = content.slice(0, index + 1);
+                    index += 1;
+                    if (index < content.length) {
+                        window.setTimeout(step, speed);
+                    } else {
+                        element.classList.remove("is-typing");
+                        resolve();
+                    }
+                }
+                step();
+            });
+        }
+
+        function createSparkles() {
+            if (!sparkles) {
+                return;
+            }
+            for (var index = 0; index < 18; index += 1) {
+                var sparkle = document.createElement("span");
+                sparkle.style.left = (6 + Math.random() * 88) + "%";
+                sparkle.style.top = (4 + Math.random() * 84) + "%";
+                sparkle.style.animationDelay = (Math.random() * 3.4).toFixed(2) + "s";
+                sparkle.style.animationDuration = (2 + Math.random() * 2.5).toFixed(2) + "s";
+                sparkle.style.setProperty("--sparkle-size", (5 + Math.random() * 8).toFixed(0) + "px");
+                sparkles.appendChild(sparkle);
+            }
+        }
+
+        function enablePointerTracking() {
+            if (!viewer || prefersReducedMotion) {
+                return;
+            }
+
+            var ticking = false;
+
+            function updateTransform(event) {
+                var rect = viewer.getBoundingClientRect();
+                var x = (event.clientX - rect.left) / rect.width;
+                var y = (event.clientY - rect.top) / rect.height;
+                var rotateY = (x - 0.5) * 18;
+                var rotateX = (0.5 - y) * 14;
+                viewer.style.setProperty("--viewer-rotate-x", rotateX.toFixed(2) + "deg");
+                viewer.style.setProperty("--viewer-rotate-y", rotateY.toFixed(2) + "deg");
+            }
+
+            function onMove(event) {
+                if (ticking) {
+                    return;
+                }
+                ticking = true;
+                window.requestAnimationFrame(function () {
+                    updateTransform(event);
+                    ticking = false;
+                });
+            }
+
+            viewer.addEventListener("mousemove", onMove);
+            viewer.addEventListener("mouseleave", function () {
+                viewer.style.setProperty("--viewer-rotate-x", "0deg");
+                viewer.style.setProperty("--viewer-rotate-y", "0deg");
+            });
+        }
+
+        function formatTime(seconds) {
+            var whole = Math.max(0, Math.floor(seconds));
+            var minutes = Math.floor(whole / 60);
+            var remain = whole % 60;
+            return minutes + ":" + String(remain).padStart(2, "0");
+        }
+
+        function hideIntroStartGate() {
+            if (!introStartGate) {
+                return;
+            }
+            introStartGate.classList.add("is-hidden");
+            introStartGate.setAttribute("aria-hidden", "true");
+        }
+
+        function waitForIntroStart() {
+            if (!introVideo || !payload.introVideoUrl || prefersReducedMotion || !introStartGate || !introStartButton) {
+                hideIntroStartGate();
+                return Promise.resolve(false);
+            }
+
+            if (introStartResolved) {
+                return Promise.resolve(true);
+            }
+
+            if (introStartPromise) {
+                return introStartPromise;
+            }
+
+            introStartGate.classList.remove("is-hidden");
+            introStartGate.setAttribute("aria-hidden", "false");
+
+            introStartPromise = new Promise(function (resolve) {
+                introStartButton.addEventListener("click", function onStartClick() {
+                    introStartButton.removeEventListener("click", onStartClick);
+                    introStartResolved = true;
+                    hideIntroStartGate();
+                    resolve(true);
+                });
+            });
+
+            return introStartPromise;
+        }
+
+        function resizeIntroCanvas() {
+            if (!introVideo || !introCanvas || !introCanvasContext || !introVideo.videoWidth || !introVideo.videoHeight) {
+                return false;
+            }
+
+            var rect = introCanvas.getBoundingClientRect();
+            var scale = window.devicePixelRatio || 1;
+            var width = Math.max(1, Math.round(rect.width * scale));
+            var height = Math.max(1, Math.round(rect.height * scale));
+
+            if (introCanvas.width !== width || introCanvas.height !== height) {
+                introCanvas.width = width;
+                introCanvas.height = height;
+            }
+
+            return true;
+        }
+
+        function stopIntroCanvasKeying() {
+            introCanvasEnabled = false;
+            if (introCanvasFrameId) {
+                window.cancelAnimationFrame(introCanvasFrameId);
+                introCanvasFrameId = 0;
+            }
+            if (introVideo) {
+                introVideo.classList.remove("is-canvas-driving");
+            }
+            if (introCanvas) {
+                introCanvas.classList.remove("is-active");
+            }
+        }
+
+        function startIntroCanvasKeying() {
+            if (!introVideo || !introCanvas || !introCanvasContext) {
+                return false;
+            }
+
+            if (!resizeIntroCanvas()) {
+                return false;
+            }
+
+            introCanvasEnabled = true;
+            introCanvas.classList.add("is-active");
+            introVideo.classList.add("is-canvas-driving");
+
+            function renderFrame() {
+                if (!introCanvasEnabled || !introCanvasContext || !introCanvas) {
+                    return;
+                }
+
+                if (introVideo.readyState >= 2 && !introVideo.paused && !introVideo.ended) {
+                    var width = introCanvas.width;
+                    var height = introCanvas.height;
+                    var sourceWidth = introVideo.videoWidth;
+                    var sourceHeight = introVideo.videoHeight;
+                    var sourceRatio = sourceWidth / sourceHeight;
+                    var targetRatio = width / height;
+                    var cropWidth = sourceWidth;
+                    var cropHeight = sourceHeight;
+                    var cropX = 0;
+                    var cropY = 0;
+
+                    if (sourceRatio > targetRatio) {
+                        cropWidth = sourceHeight * targetRatio;
+                        cropX = (sourceWidth - cropWidth) / 2;
+                    } else if (sourceRatio < targetRatio) {
+                        cropHeight = sourceWidth / targetRatio;
+                        cropY = (sourceHeight - cropHeight) / 2;
+                    }
+
+                    introCanvasContext.clearRect(0, 0, width, height);
+                    introCanvasContext.drawImage(
+                        introVideo,
+                        cropX,
+                        cropY,
+                        cropWidth,
+                        cropHeight,
+                        0,
+                        0,
+                        width,
+                        height
+                    );
+
+                    var frame = introCanvasContext.getImageData(0, 0, width, height);
+                    var data = frame.data;
+
+                    for (var index = 0; index < data.length; index += 4) {
+                        var red = data[index];
+                        var green = data[index + 1];
+                        var blue = data[index + 2];
+                        var maxChannel = Math.max(red, green, blue);
+                        var minChannel = Math.min(red, green, blue);
+                        var spread = maxChannel - minChannel;
+
+                        if (maxChannel <= 14 && spread <= 12) {
+                            data[index + 3] = 0;
+                        } else if (maxChannel <= 38 && spread <= 18) {
+                            var fade = (maxChannel - 14) / 24;
+                            data[index + 3] = Math.min(data[index + 3], Math.round(255 * fade * fade));
+                        }
+                    }
+
+                    introCanvasContext.putImageData(frame, 0, 0);
+                }
+
+                introCanvasFrameId = window.requestAnimationFrame(renderFrame);
+            }
+
+            if (introCanvasFrameId) {
+                window.cancelAnimationFrame(introCanvasFrameId);
+            }
+            introCanvasFrameId = window.requestAnimationFrame(renderFrame);
+            return true;
+        }
+
+        function revealFallbackFigure() {
+            stopIntroCanvasKeying();
+            hideIntroStartGate();
+            if (fallbackFigure) {
+                fallbackFigure.classList.remove("is-hidden");
+                fallbackFigure.classList.add("is-visible");
+            }
+            if (introVideo) {
+                introVideo.classList.add("is-hidden");
+            }
+            if (introCanvas) {
+                introCanvas.classList.add("is-hidden");
+            }
+        }
+
+        function playIntroVideo(startMuted) {
+            if (!introVideo || !payload.introVideoUrl || prefersReducedMotion) {
+                revealFallbackFigure();
+                return Promise.resolve();
+            }
+
+            introVideo.currentTime = 0;
+            introVideo.muted = startMuted !== false;
+            introVideo.volume = 1;
+            introVideo.classList.remove("is-hidden");
+            if (introCanvas) {
+                introCanvas.classList.remove("is-hidden");
+            }
+
+            return new Promise(function (resolve) {
+                var settled = false;
+
+                function finish() {
+                    if (settled) {
+                        return;
+                    }
+                    settled = true;
+                    introVideo.removeEventListener("ended", onEnded);
+                    introVideo.removeEventListener("error", onError);
+                    revealFallbackFigure();
+                    resolve();
+                }
+
+                function onEnded() {
+                    finish();
+                }
+
+                function onError() {
+                    finish();
+                }
+
+                introVideo.addEventListener("ended", onEnded, { once: true });
+                introVideo.addEventListener("error", onError, { once: true });
+
+                if (introVideo.readyState >= 1) {
+                    startIntroCanvasKeying();
+                } else {
+                    introVideo.addEventListener("loadedmetadata", startIntroCanvasKeying, { once: true });
+                }
+
+                var playPromise = introVideo.play();
+                if (playPromise && typeof playPromise.then === "function") {
+                    playPromise.catch(function () {
+                        finish();
+                    });
+                }
+            });
+        }
+
+        function PentatonicPlayer(container, preset, sourceUrl) {
+            this.container = container;
+            this.preset = preset;
+            this.sourceUrl = sourceUrl;
+            this.toggleButton = container.querySelector("[data-player-toggle]");
+            this.muteButton = container.querySelector("[data-player-mute]");
+            this.volumeInput = container.querySelector("[data-player-volume]");
+            this.progressFill = container.querySelector("[data-progress-fill]");
+            this.progressCurrent = container.querySelector("[data-progress-current]");
+            this.progressTotal = container.querySelector("[data-progress-total]");
+            this.status = container.querySelector("[data-player-status]");
+            this.title = container.querySelector("[data-track-title]");
+            this.description = container.querySelector("[data-track-description]");
+            this.bars = Array.prototype.slice.call(container.querySelectorAll(".player-visualizer span"));
+            this.audioContext = null;
+            this.masterGain = null;
+            this.analyser = null;
+            this.timeoutId = null;
+            this.frameId = null;
+            this.unlockPending = false;
+            this.isPlaying = false;
+            this.isMuted = false;
+            this.elapsed = 0;
+            this.startedAt = 0;
+            this.segments = [];
+            this.totalDuration = 0;
+            this.activeNodes = [];
+            this._buildSegments();
+            this._bind();
+            this._renderMeta();
+        }
+
+        PentatonicPlayer.prototype._buildSegments = function () {
+            var secondsPerBeat = 60 / this.preset.tempo;
+            var cursor = 0;
+            this.segments = this.preset.melody.map(function (item) {
+                var duration = item.beats * secondsPerBeat;
+                var segment = {
+                    note: item.note,
+                    start: cursor,
+                    duration: duration,
+                    end: cursor + duration
+                };
+                cursor += duration;
+                return segment;
+            });
+            this.totalDuration = cursor;
+        };
+
+        PentatonicPlayer.prototype._renderMeta = function () {
+            this.title.textContent = this.preset.title;
+            this.description.textContent = this.preset.description;
+            this.progressTotal.textContent = formatTime(this.totalDuration);
+            this.progressCurrent.textContent = "0:00";
+            this.progressFill.style.width = "0%";
+            this._setStatus("Sẵn sàng phát giai điệu cho " + payload.name + ".");
+        };
+
+        PentatonicPlayer.prototype._setStatus = function (message) {
+            this.status.textContent = message;
+        };
+
+        PentatonicPlayer.prototype._bind = function () {
+            var self = this;
+            this.toggleButton.addEventListener("click", function () {
+                if (self.isPlaying) {
+                    self.pause();
+                } else {
+                    self.play();
+                }
+            });
+            this.muteButton.addEventListener("click", function () {
+                self.isMuted = !self.isMuted;
+                self._applyVolume();
+            });
+            this.volumeInput.addEventListener("input", function () {
+                self._applyVolume();
+            });
+
+            function unlockHandler() {
+                if (!self.unlockPending) {
+                    return;
+                }
+                self.unlockPending = false;
+                self.play();
+            }
+
+            document.addEventListener("pointerdown", unlockHandler, { passive: true });
+            document.addEventListener("keydown", unlockHandler);
+        };
+
+        PentatonicPlayer.prototype._ensureContext = function () {
+            if (this.audioContext) {
+                return Promise.resolve(this.audioContext);
+            }
+            var Ctx = window.AudioContext || window.webkitAudioContext;
+            if (!Ctx) {
+                this._setStatus("Trình duyệt chưa hỗ trợ Web Audio.");
+                return Promise.reject(new Error("Web Audio unsupported"));
+            }
+            this.audioContext = new Ctx();
+            this.masterGain = this.audioContext.createGain();
+            this.analyser = this.audioContext.createAnalyser();
+            this.analyser.fftSize = 64;
+            this.masterGain.connect(this.analyser);
+            this.analyser.connect(this.audioContext.destination);
+            this._applyVolume();
+            return Promise.resolve(this.audioContext);
+        };
+
+        PentatonicPlayer.prototype._applyVolume = function () {
+            var volume = Number(this.volumeInput.value || 0) / 100;
+            var target = this.isMuted ? 0 : volume;
+            if (this.masterGain) {
+                this.masterGain.gain.setTargetAtTime(target, this.audioContext.currentTime, 0.01);
+            }
+            this.muteButton.textContent = this.isMuted ? "Unmute" : "Mute";
+        };
+
+        PentatonicPlayer.prototype._playNote = function (frequency, duration) {
+            if (!this.audioContext || !this.masterGain) {
+                return;
+            }
+            var now = this.audioContext.currentTime;
+            var oscillator = this.audioContext.createOscillator();
+            var overtone = this.audioContext.createOscillator();
+            var gain = this.audioContext.createGain();
+
+            oscillator.type = this.preset.waveform;
+            oscillator.frequency.value = frequency;
+            overtone.type = "sine";
+            overtone.frequency.value = frequency * 2;
+
+            gain.gain.setValueAtTime(0.0001, now);
+            gain.gain.exponentialRampToValueAtTime(0.26, now + 0.03);
+            gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.16, duration));
+
+            oscillator.connect(gain);
+            overtone.connect(gain);
+            gain.connect(this.masterGain);
+
+            oscillator.start(now);
+            overtone.start(now);
+            oscillator.stop(now + duration + 0.08);
+            overtone.stop(now + duration + 0.08);
+            this.activeNodes = [oscillator, overtone];
+        };
+
+        PentatonicPlayer.prototype._startVisualizer = function () {
+            var self = this;
+            if (!this.analyser) {
+                return;
+            }
+            var data = new Uint8Array(this.analyser.frequencyBinCount);
+
+            function frame() {
+                if (!self.isPlaying) {
+                    self.bars.forEach(function (bar) {
+                        bar.style.transform = "scaleY(0.28)";
+                    });
+                    return;
+                }
+                self.analyser.getByteFrequencyData(data);
+                self.bars.forEach(function (bar, index) {
+                    var sample = data[index % data.length] || 22;
+                    var scale = Math.max(0.24, sample / 160);
+                    bar.style.transform = "scaleY(" + scale.toFixed(2) + ")";
+                });
+                self.frameId = window.requestAnimationFrame(frame);
+            }
+
+            this.frameId = window.requestAnimationFrame(frame);
+        };
+
+        PentatonicPlayer.prototype._stopVisualizer = function () {
+            if (this.frameId) {
+                window.cancelAnimationFrame(this.frameId);
+                this.frameId = null;
+            }
+            this.bars.forEach(function (bar) {
+                bar.style.transform = "scaleY(0.28)";
+            });
+        };
+
+        PentatonicPlayer.prototype._scheduleFrom = function (offset) {
+            var self = this;
+            var localOffset = offset;
+            var segmentIndex = 0;
+
+            while (segmentIndex < this.segments.length && localOffset >= this.segments[segmentIndex].end) {
+                segmentIndex += 1;
+            }
+
+            if (segmentIndex >= this.segments.length) {
+                localOffset = 0;
+                segmentIndex = 0;
+            }
+
+            function schedule(index, skipped) {
+                if (!self.isPlaying) {
+                    return;
+                }
+                var segment = self.segments[index];
+                var skip = skipped || 0;
+                var remaining = Math.max(0.12, segment.duration - skip);
+                self._playNote(self.preset.notes[segment.note], remaining * 0.92);
+                self.timeoutId = window.setTimeout(function () {
+                    var nextIndex = index + 1;
+                    if (nextIndex >= self.segments.length) {
+                        self._finishPlayback();
+                        return;
+                    }
+                    schedule(nextIndex, 0);
+                }, remaining * 1000);
+            }
+
+            schedule(segmentIndex, Math.max(0, localOffset - this.segments[segmentIndex].start));
+        };
+
+        PentatonicPlayer.prototype._updateProgress = function () {
+            var self = this;
+
+            function frame() {
+                if (!self.isPlaying) {
+                    return;
+                }
+                var elapsed = (window.performance.now() - self.startedAt) / 1000;
+                if (elapsed >= self.totalDuration) {
+                    self._finishPlayback();
+                    return;
+                }
+                self.elapsed = elapsed;
+                self.progressCurrent.textContent = formatTime(elapsed);
+                self.progressFill.style.width = ((elapsed / self.totalDuration) * 100).toFixed(2) + "%";
+                self.frameIdProgress = window.requestAnimationFrame(frame);
+            }
+
+            this.frameIdProgress = window.requestAnimationFrame(frame);
+        };
+
+        PentatonicPlayer.prototype._stopProgress = function () {
+            if (this.frameIdProgress) {
+                window.cancelAnimationFrame(this.frameIdProgress);
+                this.frameIdProgress = null;
+            }
+        };
+
+        PentatonicPlayer.prototype._stopActiveNodes = function () {
+            this._stopActiveNodes();
+        };
+
+        PentatonicPlayer.prototype._finishPlayback = function () {
+            this.isPlaying = false;
+            if (this.timeoutId) {
+                window.clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+            }
+            this._stopProgress();
+            this._stopVisualizer();
+            this._stopActiveNodes();
+            this.elapsed = this.totalDuration;
+            this.progressCurrent.textContent = formatTime(this.totalDuration);
+            this.progressFill.style.width = "100%";
+            this.toggleButton.textContent = "Play";
+            this._setStatus("Đoạn nhạc giới thiệu đã phát xong. Nhấn Play để nghe lại.");
+        };
+
+        PentatonicPlayer.prototype.pause = function () {
+            if (!this.isPlaying) {
+                return;
+            }
+            this.isPlaying = false;
+            if (this.timeoutId) {
+                window.clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+            }
+            this._stopProgress();
+            this._stopVisualizer();
+            this.toggleButton.textContent = "Play";
+            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
+            this.activeNodes.forEach(function (node) {
+                if (typeof node.stop === "function") {
+                    try {
+                        node.stop();
+                    } catch (error) {
+                        return;
+                    }
+                }
+            });
+            this.activeNodes = [];
+        };
+
+        PentatonicPlayer.prototype._stopActiveNodes = function () {
+            this.activeNodes.forEach(function (node) {
+                if (typeof node.stop === "function") {
+                    try {
+                        node.stop();
+                    } catch (error) {
+                        return;
+                    }
+                }
+            });
+            this.activeNodes = [];
+        };
+
+        PentatonicPlayer.prototype.pause = function () {
+            if (!this.isPlaying) {
+                return;
+            }
+            this.isPlaying = false;
+            if (this.timeoutId) {
+                window.clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+            }
+            this._stopProgress();
+            this._stopVisualizer();
+            this._stopActiveNodes();
+            this.toggleButton.textContent = "Play";
+            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
+        };
+
+        PentatonicPlayer.prototype._stopActiveNodes = function () {
+            this.activeNodes.forEach(function (node) {
+                if (typeof node.stop === "function") {
+                    try {
+                        node.stop();
+                    } catch (error) {
+                        return;
+                    }
+                }
+            });
+            this.activeNodes = [];
+        };
+
+        PentatonicPlayer.prototype._finishPlayback = function () {
+            this.isPlaying = false;
+            if (this.timeoutId) {
+                window.clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+            }
+            this._stopProgress();
+            this._stopVisualizer();
+            this._stopActiveNodes();
+            this.elapsed = this.totalDuration;
+            this.progressCurrent.textContent = formatTime(this.totalDuration);
+            this.progressFill.style.width = "100%";
+            this.toggleButton.textContent = "Play";
+            this._setStatus("Doan nhac gioi thieu da phat xong. Nhan Play de nghe lai.");
+        };
+
+        PentatonicPlayer.prototype.pause = function () {
+            if (!this.isPlaying) {
+                return;
+            }
+            this.isPlaying = false;
+            if (this.timeoutId) {
+                window.clearTimeout(this.timeoutId);
+                this.timeoutId = null;
+            }
+            this._stopProgress();
+            this._stopVisualizer();
+            this._stopActiveNodes();
+            this.toggleButton.textContent = "Play";
+            this._setStatus("Da tam dung. Ban co the tiep tuc tu nhip hien tai.");
+        };
+
+        PentatonicPlayer.prototype.play = function () {
+            var self = this;
+            if (this.isPlaying) {
+                return Promise.resolve();
+            }
+            if (this.elapsed >= this.totalDuration) {
+                this.elapsed = 0;
+                this.progressCurrent.textContent = "0:00";
+                this.progressFill.style.width = "0%";
+            }
+            return this._ensureContext()
+                .then(function () {
+                    return self.audioContext.resume();
+                })
+                .then(function () {
+                    self.isPlaying = true;
+                    self.unlockPending = false;
+                    self.startedAt = window.performance.now() - (self.elapsed * 1000);
+                    self.toggleButton.textContent = "Pause";
+                    self._setStatus("Đang phát: " + self.preset.title + ".");
+                    self._scheduleFrom(self.elapsed);
+                    self._updateProgress();
+                    self._startVisualizer();
+                })
+                .catch(function () {
+                    self.unlockPending = true;
+                    self.toggleButton.textContent = "Play";
+                    self._setStatus("Trình duyệt đang chặn tự phát. Nhấn Play hoặc chạm màn hình để bật nhạc.");
+                });
+        };
+
+        PentatonicPlayer.prototype.autoPlay = function () {
+            return this.play();
+        };
+
+        createSparkles();
+
+        var preset = musicPresets[payload.slug] || defaultPreset(payload.name);
+        var player = new PentatonicPlayer(root.querySelector("[data-player]"), preset, payload.audioUrl);
+
+        async function runSequence() {
+            viewer.classList.add("is-active");
+            var startWithSound = await waitForIntroStart();
+            var introPlayback = playIntroVideo(!startWithSound);
+
+            if (!introVideo || !payload.introVideoUrl || prefersReducedMotion) {
+                enablePointerTracking();
+            } else {
+                introPlayback.then(function () {
+                    enablePointerTracking();
+                });
+            }
+
+            await wait(prefersReducedMotion ? 0 : 220);
+            viewer.classList.add("is-greeted");
+
+            await typeText(nameEl, payload.name, prefersReducedMotion ? 0 : 72);
+            await wait(prefersReducedMotion ? 0 : 120);
+            await typeText(nicknameEl, payload.nickname, prefersReducedMotion ? 0 : 48);
+
+            infoGrid.classList.add("is-visible");
+            await wait(prefersReducedMotion ? 0 : 260);
+
+            await typeText(storyEl, payload.story, prefersReducedMotion ? 0 : 30);
+
+            roleCard.classList.add("is-visible");
+            await wait(prefersReducedMotion ? 0 : 220);
+
+            playerCard.hidden = false;
+            window.requestAnimationFrame(function () {
+                playerCard.classList.add("is-visible");
+            });
+            player.autoPlay();
+            await introPlayback;
+        }
+
+        runSequence();
+    })();
+</script>
+{% if character.asset_type == "model" %}
+<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
+{% endif %}
+{% endblock %}
+

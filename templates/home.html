@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block hero %}
+<section class="hero">
+    <h1>Mặc di sản – Sống hiện đại</h1>
+    <span class="hero-ornament"></span>
+    <p class="hero-sub">Nền tảng thời trang kể chuyện nghệ thuật truyền thống Việt Nam. Mỗi chiếc áo là một hành trình
+        khám phá văn hoá qua QR và âm thanh.</p>
+    <p class="hero-proverb">❝ Uống nước nhớ nguồn ❞</p>
+    <a href="{{ url_for('product_list') }}" class="btn-primary">✦ Khám phá sản phẩm</a>
+</section>
+{% endblock %}
+
+{% block content %}
+<section class="featured-characters fade-in">
+    <div class="section-heading">
+        <h2>Nhân vật nổi bật</h2>
+        <span class="ornament-line"></span>
+        <p>Sáu Tinh Linh đại diện cho sáu loại hình nghệ thuật truyền thống miền Bắc</p>
+    </div>
+    <div class="grid">
+        {% for character in featured_characters %}
+        <article class="card character-card">
+            <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+            <h3>{{ character.name }}</h3>
+            <p>{{ character.nickname }}</p>
+            <a href="{{ url_for('character_page', slug=character.slug) }}" class="link">Tìm hiểu →</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="featured-products fade-in">
+    <div class="section-heading">
+        <h2>Sản phẩm nổi bật</h2>
+        <span class="ornament-line"></span>
+        <p>Bộ sưu tập áo phông kể chuyện di sản</p>
+    </div>
+    <div class="grid">
+        {% for product in featured_products %}
+        <article class="card product-card">
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" />
+            <h3>{{ product.name }}</h3>
+            <p class="price">{{ "{:,}".format(product.price) }} ₫</p>
+            <a href="{{ url_for('product_detail', slug=product.slug) }}" class="btn-secondary">Xem chi tiết</a>
+        </article>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}
+
+{% block sections %}
+<section class="values-section">
+    <div class="container">
+        <div class="section-heading">
+            <h2>Giá trị cốt lõi</h2>
+            <span class="ornament-line"></span>
+        </div>
+        <div class="values-grid">
+            <div class="value-card fade-in">
+                <span class="value-icon">🎭</span>
+                <h3>Bảo tồn di sản</h3>
+                <p>Mỗi sản phẩm kể một câu chuyện về nghệ thuật truyền thống, giữ gìn và lan tỏa giá trị văn hoá Việt.
+                </p>
+            </div>
+            <div class="value-card fade-in">
+                <span class="value-icon">🎋</span>
+                <h3>Thân thiện môi trường</h3>
+                <p>100% cotton hữu cơ, quy trình sản xuất xanh, bao bì tái chế – vì một tương lai bền vững.</p>
+            </div>
+            <div class="value-card fade-in">
+                <span class="value-icon">✨</span>
+                <h3>Công nghệ QR</h3>
+                <p>Quét mã QR trên mỗi chiếc áo để khám phá câu chuyện nhân vật và nghe podcast văn hoá.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<section class="culture-section">
+    <div class="container">
+        <div class="culture-content fade-in">
+            <div class="section-heading">
+                <h2>Về nghệ thuật truyền thống</h2>
+                <span class="ornament-line"></span>
+            </div>
+            <p>Từ sân khấu Chèo đến Múa rối nước, từ Hát Xẩm đến Hát Then – mỗi loại hình là một viên ngọc quý trong kho
+                tàng văn hoá Việt. Nếp Thanh nhân cách hóa sáu loại hình ấy thành sáu nhân vật sống động, đưa di sản
+                bước ra khỏi bảo tàng và đến gần hơn với đời sống hiện đại.</p>
+            <a href="{{ url_for('about') }}" class="btn-outline" style="margin-top:1rem">Tìm hiểu thêm →</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

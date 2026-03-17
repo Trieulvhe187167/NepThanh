@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="checkout-page">
+    <h1>Thanh toán</h1>
+    <div class="checkout-layout">
+        <form method="post" class="checkout-form">
+            <div class="checkout-block">
+                <h2>Thông tin nhận hàng</h2>
+                {% if current_user and addresses %}
+                <label>
+                    Chọn địa chỉ đã lưu
+                    <select name="address_id" id="checkout_address_id">
+                        <option value="">Nhập địa chỉ mới / chỉnh tay</option>
+                        {% for address in addresses %}
+                        <option
+                            value="{{ address.id }}"
+                            {% if form_values.address_id == (address.id|string) %}selected{% endif %}
+                            data-recipient-name="{{ (address.recipient_name or '')|e }}"
+                            data-phone="{{ (address.phone or '')|e }}"
+                            data-line1="{{ (address.line1 or '')|e }}"
+                            data-line2="{{ (address.line2 or '')|e }}"
+                            data-ward="{{ (address.ward or '')|e }}"
+                            data-district="{{ (address.district or '')|e }}"
+                            data-province="{{ (address.province or '')|e }}"
+                        >
+                            {{ address.recipient_name or 'Nguoi nhan' }} - {{ address.line1 }}, {{ address.district }}, {{ address.province }}{% if address.is_default %} (mac dinh){% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                    <small class="field-hint">Bạn có thể quản lý địa chỉ trong mục tài khoản cá nhân.</small>
+                </label>
+                {% elif current_user %}
+                <p class="field-hint">Bạn chưa có địa chỉ đã lưu. <a href="{{ url_for('account_profile') }}">Thêm trong tài khoản</a>.</p>
+                {% endif %}
+                <div class="checkout-grid">
+                    <label>
+                        Tên người nhận
+                        <input id="checkout_recipient_name" type="text" name="recipient_name" value="{{ form_values.recipient_name }}" required />
+                    </label>
+                    <label>
+                        Email
+                        <input type="email" name="email" value="{{ form_values.email }}" required />
+                    </label>
+                    <label>
+                        Số điện thoại
+                        <input id="checkout_phone" type="text" name="phone" value="{{ form_values.phone }}" required />
+                        {% if profile.phone %}
+                        <small class="field-hint">Đã lấy từ hồ sơ, bạn có thể chỉnh sửa trước khi đặt hàng.</small>
+                        {% endif %}
+                    </label>
+                    <label>
+                        Địa chỉ (số nhà, đường)
+                        <input id="checkout_line1" type="text" name="line1" value="{{ form_values.line1 }}" required />
+                    </label>
+                    <label>
+                        Địa chỉ bổ sung
+                        <input id="checkout_line2" type="text" name="line2" value="{{ form_values.line2 }}" />
+                    </label>
+                    <label>
+                        Phường / xã
+                        <input id="checkout_ward" type="text" name="ward" value="{{ form_values.ward }}" />
+                    </label>
+                    <label>
+                        Quận / huyện
+                        <input id="checkout_district" type="text" name="district" value="{{ form_values.district }}" required />
+                    </label>
+                    <label>
+                        Tỉnh / thành phố
+                        <input id="checkout_province" type="text" name="province" value="{{ form_values.province }}" required />
+                    </label>
+                </div>
+            </div>
+
+            <div class="checkout-block">
+                <h2>Vận chuyển</h2>
+                <label>
+                    Phương thức vận chuyển
+                    <select name="shipping_zone" required>
+                        <option value="">Chọn khu vực</option>
+                        {% for option in cart.shipping_options %}
+                        <option value="{{ option.value }}" {% if form_values.shipping_zone == option.value %}selected{% endif %}>
+                            {{ option.label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+
+            <div class="checkout-block">
+                <h2>Thanh toán</h2>
+                <div class="payment-options">
+                    <label class="payment-option">
+                        <input type="radio" name="payment_method" value="cod" {% if form_values.payment_method != "vnpay" %}checked{% endif %} />
+                        <span>
+                            <strong>COD</strong>
+                            <small>Thanh toán khi nhận hàng</small>
+                        </span>
+                    </label>
+                    <label class="payment-option">
+                        <input type="radio" name="payment_method" value="vnpay" {% if form_values.payment_method == "vnpay" %}checked{% endif %} />
+                        <span>
+                            <strong>VNPay</strong>
+                            <small>Thanh toán online qua cổng VNPay</small>
+                        </span>
+                    </label>
+                </div>
+                <label>
+                    Ghi chú đơn hàng
+                    <textarea name="notes" rows="3">{{ form_values.notes }}</textarea>
+                </label>
+            </div>
+
+            <button type="submit" class="btn-secondary btn-block">Đặt hàng</button>
+        </form>
+
+        <aside class="checkout-summary">
+            <div class="cart-block cart-totals">
+                <h2>Đơn hàng của bạn</h2>
+                {% for item in cart["items"] %}
+                <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.line_total) }} ₫</strong></p>
+                {% endfor %}
+                <p><span>Tạm tính</span><strong>{{ "{:,}".format(cart.subtotal) }} ₫</strong></p>
+                <p><span>Giảm giá</span><strong>- {{ "{:,}".format(cart.discount_amount) }} ₫</strong></p>
+                <p><span>Vận chuyển</span><strong>{{ "{:,}".format(cart.shipping_fee) }} ₫</strong></p>
+                <p class="total"><span>Tổng</span><strong>{{ "{:,}".format(cart.total) }} ₫</strong></p>
+            </div>
+            <a href="{{ url_for('cart_view') }}" class="btn-outline">Quay lại giỏ hàng</a>
+        </aside>
+    </div>
+</section>
+<script>
+(function () {
+    var selector = document.getElementById("checkout_address_id");
+    if (!selector) return;
+    var fields = {
+        recipient_name: document.getElementById("checkout_recipient_name"),
+        phone: document.getElementById("checkout_phone"),
+        line1: document.getElementById("checkout_line1"),
+        line2: document.getElementById("checkout_line2"),
+        ward: document.getElementById("checkout_ward"),
+        district: document.getElementById("checkout_district"),
+        province: document.getElementById("checkout_province")
+    };
+
+    selector.addEventListener("change", function () {
+        var selected = selector.options[selector.selectedIndex];
+        if (!selected || !selected.value) return;
+        Object.keys(fields).forEach(function (key) {
+            var field = fields[key];
+            if (!field) return;
+            var value = selected.getAttribute("data-" + key.replace("_", "-"));
+            if (value) field.value = value;
+        });
+    });
+})();
+</script>
+{% endblock %}

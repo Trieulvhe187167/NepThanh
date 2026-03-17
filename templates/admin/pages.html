@@ -1,0 +1,35 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <a class="btn btn-primary" href="{{ url_for('admin_page_new') }}">Tạo trang mới</a>
+</div>
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tiêu đề</th>
+                <th>Slug</th>
+                <th>Trạng thái</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for page in pages %}
+            <tr>
+                <td>{{ page.title }}</td>
+                <td>{{ page.slug }}</td>
+                <td>{{ page.status }}</td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_page_edit', page_id=page.id) }}">Sửa</a>
+                    <form method="post" action="{{ url_for('admin_page_delete', page_id=page.id) }}" style="display: inline;" onsubmit="return confirm('Xóa trang?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Chưa có trang.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

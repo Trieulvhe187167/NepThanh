@@ -1,0 +1,39 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <title>{{ title }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { border-bottom: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+        @media print { button { display: none; } }
+    </style>
+</head>
+<body>
+    <button onclick="window.print()">In</button>
+    <h1>Phiếu giao hàng {{ order.order_number }}</h1>
+    <p><strong>Người nhận:</strong> {{ order.recipient_name }}</p>
+    <p><strong>SĐT:</strong> {{ order.phone }}</p>
+    <p><strong>Địa chỉ:</strong> {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Sản phẩm</th>
+                <th>Biến thể</th>
+                <th>Số lượng</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.product_name }}</td>
+                <td>{{ item.variant_label }}</td>
+                <td>{{ item.qty }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

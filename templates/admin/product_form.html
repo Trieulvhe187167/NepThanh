@@ -1,0 +1,215 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tên sản phẩm</label>
+            <input name="name" value="{{ product.name if product else '' }}" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" value="{{ product.slug if product else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Giá gốc</label>
+            <input name="base_price" type="number" value="{{ product.base_price if product else 0 }}" />
+        </div>
+        <div class="form-group">
+            <label>Nhân vật</label>
+            <select name="character_id">
+                {% for char in characters %}
+                <option value="{{ char.id }}" {% if product and char.id == product.character_id %}selected{% endif %}>{{ char.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="active" {% if not product or product.status == 'active' %}selected{% endif %}>Đang bán</option>
+                <option value="hidden" {% if product and product.status == 'hidden' %}selected{% endif %}>Ẩn</option>
+                <option value="archived" {% if product and product.status == 'archived' %}selected{% endif %}>Lưu trữ</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Bộ sưu tập</label>
+            <input name="collection" value="{{ product.collection if product else '' }}" list="collection-list" />
+            <datalist id="collection-list">
+                {% for col in collections %}
+                <option value="{{ col.slug }}">{{ col.name }}</option>
+                {% endfor %}
+            </datalist>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="is_featured" {% if product and product.is_featured %}checked{% endif %} /> Nổi bật</label>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Mô tả ngắn</label>
+            <textarea name="description">{{ product.description if product else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Mô tả chi tiết</label>
+            <textarea name="long_description">{{ product.long_description if product else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Title</label>
+            <input name="seo_title" value="{{ product.seo_title if product else '' }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Description</label>
+            <textarea name="seo_description">{{ product.seo_description if product else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Danh mục</label>
+            <div class="form-grid">
+                {% for category in categories %}
+                <label><input type="checkbox" name="category_ids" value="{{ category.id }}" {% if category.id in category_ids %}checked{% endif %} /> {{ category.name }}</label>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Tag</label>
+            <div class="form-grid">
+                {% for tag in tags %}
+                <label><input type="checkbox" name="tag_ids" value="{{ tag.id }}" {% if tag.id in tag_ids %}checked{% endif %} /> {{ tag.name }}</label>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Lưu sản phẩm</button>
+            {% if product %}
+            <button class="btn btn-danger" type="submit" formaction="{{ url_for('admin_product_delete', product_id=product.id) }}" onclick="return confirm('Xóa sản phẩm?')">Xóa</button>
+            {% endif %}
+        </div>
+    </form>
+</div>
+
+{% if product %}
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>Biến thể</h3>
+        <form method="post" action="{{ url_for('admin_variant_new', product_id=product.id) }}" class="form-grid">
+            <div class="form-group">
+                <label>Size</label>
+                <input name="size" />
+            </div>
+            <div class="form-group">
+                <label>Màu</label>
+                <input name="color" />
+            </div>
+            <div class="form-group">
+                <label>SKU</label>
+                <input name="sku" />
+            </div>
+            <div class="form-group">
+                <label>Giá (tuỳ chọn)</label>
+                <input type="number" name="price" />
+            </div>
+            <div class="form-group">
+                <label>Tồn kho</label>
+                <input type="number" name="stock_qty" value="0" />
+            </div>
+            <div class="form-group">
+                <label>Ngưỡng cảnh báo</label>
+                <input type="number" name="low_stock_threshold" value="5" />
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="is_active" checked /> Kích hoạt</label>
+            </div>
+            <div class="form-group" style="align-self: end;">
+                <button class="btn btn-primary" type="submit">Thêm biến thể</button>
+            </div>
+        </form>
+        <table class="admin-table" style="margin-top: 1rem;">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Size / Màu</th>
+                    <th>Giá</th>
+                    <th>Tồn</th>
+                    <th>Ngưỡng</th>
+                    <th>Trạng thái</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for variant in variants %}
+                <tr>
+                    <form method="post" action="{{ url_for('admin_variant_edit', variant_id=variant.id) }}">
+                        <td><input name="sku" value="{{ variant.sku }}" /></td>
+                        <td>
+                            <input name="size" value="{{ variant.size }}" style="width: 80px;" />
+                            <input name="color" value="{{ variant.color }}" style="width: 90px;" />
+                        </td>
+                        <td><input type="number" name="price" value="{{ variant.price or '' }}" /></td>
+                        <td><input type="number" name="stock_qty" value="{{ variant.stock_qty }}" /></td>
+                        <td><input type="number" name="low_stock_threshold" value="{{ variant.low_stock_threshold }}" /></td>
+                        <td>
+                            <label><input type="checkbox" name="is_active" {% if variant.is_active %}checked{% endif %} /> Active</label>
+                        </td>
+                        <td>
+                            <button class="btn btn-secondary" type="submit">Lưu</button>
+                            <button class="btn btn-danger" type="submit" formaction="{{ url_for('admin_variant_delete', variant_id=variant.id) }}" onclick="return confirm('Xóa biến thể?')">Xóa</button>
+                        </td>
+                    </form>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="muted">Chưa có biến thể.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Ảnh sản phẩm</h3>
+        <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_product_image_new', product_id=product.id) }}" class="form-grid">
+            <div class="form-group">
+                <label>Ảnh URL</label>
+                <input name="image_url" />
+            </div>
+            <div class="form-group">
+                <label>Hoặc upload</label>
+                <input type="file" name="image_file" />
+            </div>
+            <div class="form-group">
+                <label>Alt text</label>
+                <input name="alt_text" />
+            </div>
+            <div class="form-group">
+                <label>Thứ tự</label>
+                <input type="number" name="sort_order" value="0" />
+            </div>
+            <div class="form-group" style="align-self: end;">
+                <button class="btn btn-primary" type="submit">Thêm ảnh</button>
+            </div>
+        </form>
+        <table class="admin-table" style="margin-top: 1rem;">
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Alt</th>
+                    <th>Order</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for image in images %}
+                <tr>
+                    <form method="post" action="{{ url_for('admin_product_image_edit', image_id=image.id) }}">
+                        <td><input name="image_url" value="{{ image.url }}" /></td>
+                        <td><input name="alt_text" value="{{ image.alt_text or '' }}" /></td>
+                        <td><input type="number" name="sort_order" value="{{ image.sort_order }}" /></td>
+                        <td>
+                            <button class="btn btn-secondary" type="submit">Lưu</button>
+                            <button class="btn btn-danger" type="submit" formaction="{{ url_for('admin_product_image_delete', image_id=image.id) }}" onclick="return confirm('Xóa ảnh?')">Xóa</button>
+                        </td>
+                    </form>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="muted">Chưa có ảnh.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

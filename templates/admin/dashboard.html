@@ -1,0 +1,116 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-grid cols-4">
+    <div class="admin-card">
+        <div class="muted">Doanh thu hôm nay</div>
+        <h3>{{ "{:,}".format(revenue_today) }} ₫</h3>
+    </div>
+    <div class="admin-card">
+        <div class="muted">Doanh thu tuần</div>
+        <h3>{{ "{:,}".format(revenue_week) }} ₫</h3>
+    </div>
+    <div class="admin-card">
+        <div class="muted">Doanh thu tháng</div>
+        <h3>{{ "{:,}".format(revenue_month) }} ₫</h3>
+    </div>
+    <div class="admin-card">
+        <div class="muted">Đơn mới / xử lý</div>
+        <h3>{{ new_orders }} / {{ processing_orders }}</h3>
+        <div class="muted">Hoàn thành: {{ completed_orders }} · Hủy: {{ cancelled_orders }}</div>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>Biểu đồ doanh thu & đơn hàng (30 ngày)</h3>
+        <canvas id="chart" height="120"></canvas>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>Top sản phẩm bán chạy</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Sản phẩm</th>
+                    <th>Số lượng</th>
+                    <th>Doanh thu</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in top_products %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.qty_sold }}</td>
+                    <td>{{ "{:,}".format(item.revenue) }} ₫</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Tồn kho cảnh báo</h3>
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Sản phẩm</th>
+                    <th>SKU</th>
+                    <th>Tồn</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in low_stock %}
+                <tr>
+                    <td>{{ item.product_name }}</td>
+                    <td>{{ item.sku }}</td>
+                    <td><span class="badge danger">{{ item.stock_qty }}</span></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Kho an toàn.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const labels = {{ chart_labels|safe }};
+const orders = {{ chart_orders|safe }};
+const revenue = {{ chart_revenue|safe }};
+const ctx = document.getElementById('chart');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels,
+        datasets: [
+            {
+                label: 'Đơn hàng',
+                data: orders,
+                borderColor: '#0f766e',
+                backgroundColor: 'rgba(15, 118, 110, 0.1)',
+                tension: 0.35,
+            },
+            {
+                label: 'Doanh thu (₫)',
+                data: revenue,
+                borderColor: '#d97706',
+                backgroundColor: 'rgba(217, 119, 6, 0.1)',
+                tension: 0.35,
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}

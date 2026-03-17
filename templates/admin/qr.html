@@ -1,0 +1,223 @@
+{% extends "admin/base.html" %}
+{% block content %}
+{% if notice %}<p class="notice">{{ notice }}</p>{% endif %}
+
+<div class="admin-card">
+    <div style="display:flex; justify-content:space-between; gap:1rem; flex-wrap:wrap; align-items:flex-start;">
+        <div>
+            <h3 style="margin-bottom:0.35rem;">QR Manager</h3>
+            <p class="muted">Tao batch tem QR, quan ly token, export file in tem va theo doi scan.</p>
+        </div>
+        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+            <a class="btn btn-primary" href="{{ url_for('admin_qr_new') }}">Tao batch QR</a>
+            {% if selected_batch %}
+            <a class="btn btn-secondary" href="{{ url_for('admin_qr_export', batch_code=selected_batch) }}">Export ZIP {{ selected_batch }}</a>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="admin-card" style="margin-top:1rem;">
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Batch code</label>
+            <input name="batch_code" value="{{ filters.batch_code }}" placeholder="NE-2026-02" />
+        </div>
+        <div class="form-group">
+            <label>Nhan vat</label>
+            <select name="character_id">
+                <option value="0">Tat ca</option>
+                {% for char in characters %}
+                <option value="{{ char.id }}" {% if filters.character_id == char.id %}selected{% endif %}>{{ char.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Tu ngay</label>
+            <input type="date" name="date_from" value="{{ filters.date_from }}" />
+        </div>
+        <div class="form-group">
+            <label>Den ngay</label>
+            <input type="date" name="date_to" value="{{ filters.date_to }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Loc</button>
+            <a class="btn btn-secondary" href="{{ url_for('admin_qr') }}">Reset</a>
+        </div>
+    </form>
+</div>
+
+<div class="admin-grid cols-4" style="margin-top:1rem;">
+    <div class="admin-card">
+        <h3 style="margin-bottom:0.35rem;">Scan hom nay</h3>
+        <p style="font-size:1.6rem; font-weight:700;">{{ stats.scans_today }}</p>
+    </div>
+    <div class="admin-card">
+        <h3 style="margin-bottom:0.35rem;">Scan 7 ngay</h3>
+        <p style="font-size:1.6rem; font-weight:700;">{{ stats.scans_7d }}</p>
+    </div>
+    <div class="admin-card">
+        <h3 style="margin-bottom:0.35rem;">Scan 30 ngay</h3>
+        <p style="font-size:1.6rem; font-weight:700;">{{ stats.scans_30d }}</p>
+    </div>
+    <div class="admin-card">
+        <h3 style="margin-bottom:0.35rem;">Tong / Unique</h3>
+        <p style="font-size:1.6rem; font-weight:700;">{{ stats.total_scans }} / {{ stats.unique_scans }}</p>
+    </div>
+</div>
+
+<div class="admin-card" style="margin-top:1rem;">
+    <h3>Danh sach batch</h3>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Batch</th>
+                <th>Tokens</th>
+                <th>Active</th>
+                <th>Disabled</th>
+                <th>Expired</th>
+                <th>Scans</th>
+                <th>Unique</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for batch in batches %}
+            <tr>
+                <td>{{ batch.batch_code or '(none)' }}</td>
+                <td>{{ batch.token_count }}</td>
+                <td>{{ batch.active_count }}</td>
+                <td>{{ batch.disabled_count }}</td>
+                <td>{{ batch.expired_count }}</td>
+                <td>{{ batch.scan_count }}</td>
+                <td>{{ batch.unique_scans }}</td>
+                <td>{{ batch.created_at }}</td>
+                <td>
+                    {% if batch.batch_code %}
+                    <a class="btn btn-secondary" href="{{ url_for('admin_qr', batch_code=batch.batch_code) }}">Xem</a>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_qr_export', batch_code=batch.batch_code) }}">ZIP</a>
+                    {% else %}
+                    <span class="muted">-</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="9" class="muted">Chua co batch QR.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if selected_batch %}
+<div class="admin-card" style="margin-top:1rem;">
+    <h3>Tokens cua batch {{ selected_batch }}</h3>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Serial</th>
+                <th>Token</th>
+                <th>San pham</th>
+                <th>Nhan vat</th>
+                <th>Status</th>
+                <th>Scans</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tag in tokens %}
+            <tr>
+                <td>{{ tag.serial_no or '-' }}</td>
+                <td>{{ tag.token }}</td>
+                <td>{{ tag.product_name }} ({{ tag.sku }})</td>
+                <td>{{ tag.character_name }}</td>
+                <td>
+                    <span class="badge {% if tag.status == 'active' %}success{% elif tag.status == 'expired' %}warn{% else %}danger{% endif %}">
+                        {{ tag.status }}
+                    </span>
+                </td>
+                <td>{{ tag.scan_count }}</td>
+                <td>{{ tag.created_at }}</td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_qr_download', qr_id=tag.id) }}">PNG</a>
+                    {% if tag.status == 'active' %}
+                    <form method="post" action="{{ url_for('admin_qr_disable', token=tag.token) }}" style="display:inline;">
+                        <input type="hidden" name="batch_code" value="{{ selected_batch }}" />
+                        <button class="btn btn-danger" type="submit">Disable</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="muted">Khong co token trong batch nay.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<div class="admin-grid" style="margin-top:1rem;">
+    <div class="admin-card">
+        <h3>Top tokens</h3>
+        <table class="admin-table">
+            <thead><tr><th>Token</th><th>Serial</th><th>Nhan vat</th><th>Scans</th><th>Unique</th></tr></thead>
+            <tbody>
+                {% for row in stats.top_tokens %}
+                <tr>
+                    <td>{{ row.token }}</td>
+                    <td>{{ row.serial_no or '-' }}</td>
+                    <td>{{ row.character_name }}</td>
+                    <td>{{ row.scans }}</td>
+                    <td>{{ row.unique_scans }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="muted">Chua co du lieu scan.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Scans theo ngay</h3>
+        <table class="admin-table">
+            <thead><tr><th>Ngay</th><th>Scans</th></tr></thead>
+            <tbody>
+                {% for row in stats.scans_by_day %}
+                <tr><td>{{ row.day }}</td><td>{{ row.scans }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chua co du lieu scan.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top:1rem;">
+    <div class="admin-card">
+        <h3>Scans theo nhan vat</h3>
+        <table class="admin-table">
+            <thead><tr><th>Nhan vat</th><th>Scans</th></tr></thead>
+            <tbody>
+                {% for row in stats.scans_by_character %}
+                <tr><td>{{ row.character_name }}</td><td>{{ row.scans }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chua co du lieu scan.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Scans theo batch</h3>
+        <table class="admin-table">
+            <thead><tr><th>Batch</th><th>Scans</th></tr></thead>
+            <tbody>
+                {% for row in stats.scans_by_batch %}
+                <tr><td>{{ row.batch_code or '(none)' }}</td><td>{{ row.scans }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chua co du lieu scan.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

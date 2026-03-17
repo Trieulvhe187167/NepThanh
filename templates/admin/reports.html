@@ -1,0 +1,118 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-grid">
+    <div class="admin-card">
+        <h3>Doanh thu theo ngày</h3>
+        <table class="admin-table">
+            <thead><tr><th>Ngày</th><th>Đơn</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                {% for row in daily_rows %}
+                <tr><td>{{ row.day }}</td><td>{{ row.orders }}</td><td>{{ "{:,}".format(row.revenue) }} ₫</td></tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Doanh thu theo tháng</h3>
+        <table class="admin-table">
+            <thead><tr><th>Tháng</th><th>Đơn</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                {% for row in monthly_rows %}
+                <tr><td>{{ row.month }}</td><td>{{ row.orders }}</td><td>{{ "{:,}".format(row.revenue) }} ₫</td></tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>Đơn theo trạng thái</h3>
+        <table class="admin-table">
+            <thead><tr><th>Trạng thái</th><th>Số lượng</th></tr></thead>
+            <tbody>
+                {% for row in status_rows %}
+                <tr><td>{{ row.status }}</td><td>{{ row.count }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Sản phẩm bán chạy</h3>
+        <table class="admin-table">
+            <thead><tr><th>Sản phẩm</th><th>Số lượng</th><th>Doanh thu</th></tr></thead>
+            <tbody>
+                {% for row in top_products %}
+                <tr><td>{{ row.product_name }}</td><td>{{ row.qty_sold }}</td><td>{{ "{:,}".format(row.revenue) }} ₫</td></tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>Hàng tồn lâu</h3>
+        <table class="admin-table">
+            <thead><tr><th>Sản phẩm</th><th>SKU</th><th>Tồn</th><th>Lần bán cuối</th></tr></thead>
+            <tbody>
+                {% for row in slow_inventory %}
+                <tr><td>{{ row.product_name }}</td><td>{{ row.sku }}</td><td>{{ row.stock_qty }}</td><td>{{ row.last_sold or 'Chưa bán' }}</td></tr>
+                {% else %}
+                <tr><td colspan="4" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>Khách quay lại</h3>
+        <table class="admin-table">
+            <thead><tr><th>Khách</th><th>Đơn</th><th>Tổng chi</th></tr></thead>
+            <tbody>
+                {% for row in repeat_customers %}
+                <tr><td>{{ row.full_name or row.email }}</td><td>{{ row.order_count }}</td><td>{{ "{:,}".format(row.total_spent) }} ₫</td></tr>
+                {% else %}
+                <tr><td colspan="3" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-grid" style="margin-top: 1.5rem;">
+    <div class="admin-card">
+        <h3>QR scans theo ngày</h3>
+        <table class="admin-table">
+            <thead><tr><th>Ngày</th><th>Lượt quét</th></tr></thead>
+            <tbody>
+                {% for row in qr_by_day %}
+                <tr><td>{{ row.day }}</td><td>{{ row.scans }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <div class="admin-card">
+        <h3>QR scans theo nhân vật</h3>
+        <table class="admin-table">
+            <thead><tr><th>Nhân vật</th><th>Lượt quét</th></tr></thead>
+            <tbody>
+                {% for row in qr_by_character %}
+                <tr><td>{{ row.character_name }}</td><td>{{ row.scans }}</td></tr>
+                {% else %}
+                <tr><td colspan="2" class="muted">Chưa có dữ liệu.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tên</label>
+            <input name="name" value="{{ character.name if character else '' }}" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" value="{{ character.slug if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Biệt danh</label>
+            <input name="nickname" value="{{ character.nickname if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Origin</label>
+            <input name="origin" value="{{ character.origin if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Personality</label>
+            <input name="personality" value="{{ character.personality if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Symbol</label>
+            <input name="symbol" value="{{ character.symbol if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Role</label>
+            <input name="role" value="{{ character.role if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Audio URL</label>
+            <input name="audio_url" value="{{ character.audio_url if character else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Image URL</label>
+            <input name="image_url" value="{{ character.image_url if character else '' }}" />
+            <small>Co the nhap anh thuong hoac model 3D, vi du: chang_khen.glb</small>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Story</label>
+            <textarea name="story_text">{{ character.story_text if character else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Title</label>
+            <input name="seo_title" value="{{ character.seo_title if character else '' }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Description</label>
+            <textarea name="seo_description">{{ character.seo_description if character else '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="is_active" {% if not character or character.is_active %}checked{% endif %} /> Hiển thị</label>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Lưu</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

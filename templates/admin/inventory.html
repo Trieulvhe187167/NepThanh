@@ -1,0 +1,57 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Tìm kiếm</label>
+            <input name="q" value="{{ query_text }}" placeholder="Tên / SKU" />
+        </div>
+        <div class="form-group">
+            <label>Cảnh báo</label>
+            <select name="low">
+                <option value="0" {% if not low_only %}selected{% endif %}>Tất cả</option>
+                <option value="1" {% if low_only %}selected{% endif %}>Sắp hết</option>
+            </select>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-secondary" type="submit">Lọc</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Sản phẩm</th>
+                <th>SKU</th>
+                <th>Size/Màu</th>
+                <th>Tồn</th>
+                <th>Ngưỡng</th>
+                <th>Điều chỉnh</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for variant in variants %}
+            <tr>
+                <td>{{ variant.product_name }}</td>
+                <td>{{ variant.sku }}</td>
+                <td>{{ variant.size }} / {{ variant.color }}</td>
+                <td>{% if variant.stock_qty <= variant.low_stock_threshold %}<span class="badge danger">{{ variant.stock_qty }}</span>{% else %}{{ variant.stock_qty }}{% endif %}</td>
+                <td>{{ variant.low_stock_threshold }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_inventory_move') }}" style="display: flex; gap: 0.4rem;">
+                        <input type="hidden" name="variant_id" value="{{ variant.id }}" />
+                        <input type="number" name="change_qty" value="1" style="width: 80px;" />
+                        <input name="reason" placeholder="Lý do" style="width: 140px;" />
+                        <button class="btn btn-secondary" type="submit">Nhập/Xuất</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">Chưa có dữ liệu.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

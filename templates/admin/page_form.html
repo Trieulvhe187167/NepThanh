@@ -1,0 +1,38 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tiêu đề</label>
+            <input name="title" value="{{ page.title if page else '' }}" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" value="{{ page.slug if page else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="draft" {% if not page or page.status == 'draft' %}selected{% endif %}>Draft</option>
+                <option value="published" {% if page and page.status == 'published' %}selected{% endif %}>Published</option>
+            </select>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Nội dung (HTML)</label>
+            <textarea name="body_html">{{ page.body_html if page else '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>SEO Title</label>
+            <input name="seo_title" value="{{ page.seo_title if page else '' }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Description</label>
+            <textarea name="seo_description">{{ page.seo_description if page else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Lưu</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

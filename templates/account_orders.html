@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-page">
+    <h1>Lịch sử đơn hàng</h1>
+    <div class="account-block">
+        {% for order in orders %}
+        <article class="order-row">
+            <div>
+                <p><strong>{{ order.order_number }}</strong></p>
+                <p class="field-hint">{{ order.created_at }}</p>
+            </div>
+            <div>
+                <p>Đơn: <span class="status-pill">{{ order.status }}</span></p>
+                <p>Thanh toán: <span class="status-pill">{{ order.payment_status }}</span></p>
+                <p>Tổng: <strong>{{ "{:,}".format(order.total) }} ₫</strong></p>
+                {% if order.tracking_code %}
+                <p class="field-hint">Vận đơn: {{ order.shipping_provider or 'Đơn vị vận chuyển' }} - {{ order.tracking_code }}</p>
+                {% endif %}
+            </div>
+            <a class="btn-outline" href="{{ url_for('account_order_detail', order_number=order.order_number) }}">Xem chi tiết</a>
+        </article>
+        {% else %}
+        <p class="field-hint">Bạn chưa có đơn hàng nào.</p>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

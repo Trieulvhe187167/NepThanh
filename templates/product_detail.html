@@ -1,0 +1,442 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="breadcrumb">
+    <a href="{{ url_for('product_list') }}" class="back-link">← Quay lại sản phẩm</a>
+</div>
+
+<article class="product-detail-page">
+    <div class="product-detail-gallery">
+        <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" />
+    </div>
+
+    <div class="product-detail-content">
+        <h1 class="product-detail-title">{{ product.name }}</h1>
+        <div class="product-detail-price">{{ "{:,}".format(product.price) }} ₫</div>
+
+        <hr class="product-divider" />
+
+        <div class="product-section">
+            <h3 class="product-section-title">Mô tả sản phẩm</h3>
+            <p class="product-section-text">{{ product.short_description }}</p>
+        </div>
+
+        <form method="post" action="{{ url_for('cart_add') }}" class="product-add-form">
+            <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}" />
+
+            <div class="product-section">
+                <label for="variant_id" class="product-section-title">Chọn size</label>
+                <div class="pd-select-wrapper">
+                    <select name="variant_id" id="variant_id" class="pd-select" required>
+                        {% for variant in variants %}
+                        <option value="{{ variant.id }}" {% if variant.stock_qty <=0 %}disabled{% endif %}>
+                            {{ variant.size }} - {% if variant.stock_qty > 0 %}Còn {{ variant.stock_qty }} sản phẩm{%
+                            else %}Hết hàng{% endif %}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="product-section">
+                <label for="cart_quantity" class="product-section-title">Số lượng</label>
+                <div class="pd-action-row">
+                    <div class="pd-quantity-control">
+                        <button type="button" class="pd-qty-btn pd-qty-minus">−</button>
+                        <input id="cart_quantity" type="number" name="quantity" value="1" min="1"
+                            class="pd-qty-input" />
+                        <button type="button" class="pd-qty-btn pd-qty-plus">+</button>
+                    </div>
+                </div>
+            </div>
+
+            <button type="submit" class="pd-btn-add-to-cart">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round" class="pd-cart-icon">
+                    <circle cx="9" cy="21" r="1"></circle>
+                    <circle cx="20" cy="21" r="1"></circle>
+                    <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                </svg>
+                Thêm vào giỏ hàng
+            </button>
+
+            {% if not variants %}
+            <p class="pd-stock-empty">Sản phẩm hiện chưa có biến thể để đặt hàng.</p>
+            {% endif %}
+        </form>
+
+        <div class="pd-character-card">
+            <div class="pd-character-avatar">
+                <img src="{{ url_for('static', filename='images/characters/' ~ character.slug ~ '.jpg') }}"
+                    alt="{{ character.name }}"
+                    onerror='this.src="{{ url_for("static", filename="images/logo/logo.png") }}"' />
+            </div>
+            <div class="pd-character-info">
+                <h4>{{ character.name }}</h4>
+                <p>{{ character.nickname }}</p>
+                <a href="{{ url_for('character_page', slug=character.slug) }}" class="pd-character-link">Xem nhân vật
+                    →</a>
+            </div>
+        </div>
+
+        <div class="pd-details-list">
+            <h3 class="product-section-title">Chi tiết sản phẩm</h3>
+            <ul class="pd-features">
+                <li>
+                    <span class="pd-feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M20.38 3.46L16 2a8.68 8.68 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z">
+                            </path>
+                        </svg>
+                    </span>
+                    <div class="pd-feature-text">
+                        <strong>Chất liệu</strong>
+                        <span>Cotton 100% cao cấp, thoáng mát</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pd-feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z">
+                            </path>
+                            <line x1="7" y1="7" x2="7.01" y2="7"></line>
+                        </svg>
+                    </span>
+                    <div class="pd-feature-text">
+                        <strong>Form áo</strong>
+                        <span>Regular fit, phù hợp mọi vóc dáng</span>
+                    </div>
+                </li>
+                <li>
+                    <span class="pd-feature-icon">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path
+                                d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z">
+                            </path>
+                            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+                        </svg>
+                    </span>
+                    <div class="pd-feature-text">
+                        <strong>Bảng size</strong>
+                        <span>S (45-55kg), M (55-65kg), L (65-75kg), XL (75-85kg)</span>
+                    </div>
+                </li>
+            </ul>
+        </div>
+
+    </div>
+</article>
+
+<style>
+    /* New Product Detail Styles */
+    .breadcrumb {
+        margin-bottom: 20px;
+    }
+
+    .back-link {
+        color: #df2a2a;
+        text-decoration: none;
+        font-weight: 500;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .back-link:hover {
+        text-decoration: underline;
+    }
+
+    .product-detail-page {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 40px;
+        margin-top: 10px;
+    }
+
+    @media (max-width: 768px) {
+        .product-detail-page {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .product-detail-gallery {
+        background-color: #f6f5f4;
+        /* Light grey/reddish matching the image */
+        border-radius: 12px;
+        padding: 30px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        border: 1px solid #efeae8;
+    }
+
+    .product-detail-gallery img {
+        max-width: 100%;
+        height: auto;
+        object-fit: contain;
+    }
+
+    .product-detail-content {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .product-detail-title {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 10px 0;
+        line-height: 1.2;
+    }
+
+    .product-detail-price {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: #e31837;
+        /* Strong red like the image */
+        margin-bottom: 20px;
+    }
+
+    .product-divider {
+        border: 0;
+        height: 1px;
+        background: #e5e5e5;
+        margin: 0 0 20px 0;
+    }
+
+    .product-section {
+        margin-bottom: 20px;
+    }
+
+    .product-section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: #1a1a1a;
+        margin: 0 0 10px 0;
+        display: block;
+    }
+
+    .product-section-text {
+        font-size: 0.95rem;
+        color: #555;
+        line-height: 1.6;
+        margin: 0;
+    }
+
+    .pd-select-wrapper {
+        position: relative;
+    }
+
+    .pd-select {
+        width: 100%;
+        padding: 12px 15px;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        color: #333;
+        -webkit-appearance: none;
+        -moz-appearance: none;
+        appearance: none;
+        background: #fff url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" stroke="%23333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>') no-repeat right 15px center;
+        background-size: 12px;
+        cursor: pointer;
+    }
+
+    .pd-action-row {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .pd-quantity-control {
+        display: inline-flex;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        overflow: hidden;
+        height: 44px;
+    }
+
+    .pd-qty-btn {
+        background: #fff;
+        border: none;
+        width: 40px;
+        font-size: 1.2rem;
+        color: #333;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: background 0.2s;
+    }
+
+    .pd-qty-btn:hover {
+        background: #f5f5f5;
+    }
+
+    .pd-qty-input {
+        width: 50px;
+        border: none;
+        border-left: 1px solid #e5e5e5;
+        border-right: 1px solid #e5e5e5;
+        text-align: center;
+        font-size: 1rem;
+        color: #333;
+        -moz-appearance: textfield;
+    }
+
+    .pd-qty-input::-webkit-outer-spin-button,
+    .pd-qty-input::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+    }
+
+    .pd-btn-add-to-cart {
+        width: 100%;
+        background: #e31837;
+        /* The specific red from checkout/cart */
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        padding: 14px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: background 0.2s;
+        margin-bottom: 30px;
+    }
+
+    .pd-btn-add-to-cart:hover {
+        background: #c4122d;
+    }
+
+    .pd-stock-empty {
+        color: #e31837;
+        margin-top: 10px;
+        font-size: 0.9rem;
+    }
+
+    .pd-character-card {
+        background: #fdfaf9;
+        border: 1px solid #f6cfcf;
+        border-radius: 8px;
+        padding: 15px 20px;
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 30px;
+    }
+
+    .pd-character-avatar {
+        width: 60px;
+        height: 60px;
+        border-radius: 50%;
+        overflow: hidden;
+        flex-shrink: 0;
+        border: 2px solid #e31837;
+    }
+
+    .pd-character-avatar img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+    }
+
+    .pd-character-info {
+        flex-grow: 1;
+    }
+
+    .pd-character-info h4 {
+        margin: 0 0 4px 0;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #1a1a1a;
+    }
+
+    .pd-character-info p {
+        margin: 0 0 6px 0;
+        font-size: 0.9rem;
+        color: #666;
+    }
+
+    .pd-character-link {
+        font-size: 0.9rem;
+        color: #e31837;
+        text-decoration: none;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+    }
+
+    .pd-character-link:hover {
+        text-decoration: underline;
+    }
+
+    .pd-features {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    .pd-features li {
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
+    }
+
+    .pd-feature-icon {
+        color: #e31837;
+        /* Red icons */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding-top: 2px;
+    }
+
+    .pd-feature-text {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .pd-feature-text strong {
+        font-size: 0.95rem;
+        color: #1a1a1a;
+        line-height: 1.3;
+    }
+
+    .pd-feature-text span {
+        font-size: 0.9rem;
+        color: #666;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const minusBtn = document.querySelector('.pd-qty-minus');
+        const plusBtn = document.querySelector('.pd-qty-plus');
+        const qtyInput = document.getElementById('cart_quantity');
+
+        if (minusBtn && plusBtn && qtyInput) {
+            minusBtn.addEventListener('click', () => {
+                let val = parseInt(qtyInput.value) || 1;
+                if (val > 1) qtyInput.value = val - 1;
+            });
+            plusBtn.addEventListener('click', () => {
+                let val = parseInt(qtyInput.value) || 1;
+                qtyInput.value = val + 1;
+            });
+        }
+    });
+</script>
+{% endblock %}

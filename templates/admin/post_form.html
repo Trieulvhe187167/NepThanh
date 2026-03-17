@@ -1,0 +1,46 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tiêu đề</label>
+            <input name="title" value="{{ post.title if post else '' }}" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" value="{{ post.slug if post else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="draft" {% if not post or post.status == 'draft' %}selected{% endif %}>Draft</option>
+                <option value="published" {% if post and post.status == 'published' %}selected{% endif %}>Published</option>
+            </select>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Excerpt</label>
+            <textarea name="excerpt">{{ post.excerpt if post else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>Nội dung (HTML)</label>
+            <textarea name="body_html">{{ post.body_html if post else '' }}</textarea>
+        </div>
+        <div class="form-group">
+            <label>Cover Image</label>
+            <input name="cover_image" value="{{ post.cover_image if post else '' }}" />
+        </div>
+        <div class="form-group">
+            <label>SEO Title</label>
+            <input name="seo_title" value="{{ post.seo_title if post else '' }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <label>SEO Description</label>
+            <textarea name="seo_description">{{ post.seo_description if post else '' }}</textarea>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Lưu</button>
+        </div>
+    </form>
+</div>
+{% endblock %}

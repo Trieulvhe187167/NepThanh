@@ -1,0 +1,39 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tên cửa hàng</label>
+            <input name="store_name" value="{{ settings.store_name }}" />
+        </div>
+        <div class="form-group">
+            <label>Email cửa hàng</label>
+            <input name="store_email" value="{{ settings.store_email }}" />
+        </div>
+        <div class="form-group">
+            <label>Phí ship mặc định</label>
+            <input name="shipping_fee" value="{{ settings.shipping_fee }}" />
+        </div>
+        <div class="form-group">
+            <label>Free ship từ</label>
+            <input name="free_shipping_threshold" value="{{ settings.free_shipping_threshold }}" />
+        </div>
+        <div class="form-group">
+            <label>Thanh toán</label>
+            <input name="payment_method" value="{{ settings.payment_method }}" placeholder="COD, VNPay..." />
+        </div>
+        <div class="form-group">
+            <label>Email provider</label>
+            <input name="email_provider" value="{{ settings.email_provider }}" />
+        </div>
+        <div class="form-group">
+            <label>SMS provider</label>
+            <input name="sms_provider" value="{{ settings.sms_provider }}" />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Lưu cài đặt</button>
+            <a class="btn btn-secondary" href="{{ url_for('admin_audit') }}">Nhật ký hoạt động</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

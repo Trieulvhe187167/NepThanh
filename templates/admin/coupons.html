@@ -1,0 +1,92 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Mã</label>
+            <input name="code" required />
+        </div>
+        <div class="form-group">
+            <label>Loại</label>
+            <select name="discount_type">
+                <option value="percent">%</option>
+                <option value="fixed">Số tiền</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Giá trị</label>
+            <input name="value" type="number" value="0" />
+        </div>
+        <div class="form-group">
+            <label>Đơn tối thiểu</label>
+            <input name="min_order" type="number" value="0" />
+        </div>
+        <div class="form-group">
+            <label>Giảm tối đa</label>
+            <input name="max_discount" type="number" />
+        </div>
+        <div class="form-group">
+            <label>Bắt đầu</label>
+            <input name="starts_at" type="datetime-local" />
+        </div>
+        <div class="form-group">
+            <label>Kết thúc</label>
+            <input name="ends_at" type="datetime-local" />
+        </div>
+        <div class="form-group">
+            <label>Giới hạn</label>
+            <input name="usage_limit" type="number" />
+        </div>
+        <div class="form-group">
+            <label>Áp dụng</label>
+            <select name="applies_to">
+                <option value="all">Tất cả</option>
+                <option value="category">Danh mục</option>
+                <option value="product">Sản phẩm</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="is_active" checked /> Kích hoạt</label>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Tạo coupon</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Mã</th>
+                <th>Loại</th>
+                <th>Giá trị</th>
+                <th>Active</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for coupon in coupons %}
+            <tr>
+                <td>{{ coupon.code }}</td>
+                <td>{{ coupon.discount_type }}</td>
+                <td>{{ coupon.value }}</td>
+                <td>{{ coupon.is_active }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_coupon_delete', coupon_id=coupon.id) }}" onsubmit="return confirm('Xóa coupon?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Chưa có coupon.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 1rem;">
+    <a class="btn btn-secondary" href="{{ url_for('admin_promotions') }}">Flash sale / Khuyến mãi</a>
+</div>
+{% endblock %}

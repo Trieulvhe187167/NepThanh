@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="checkout-result">
+    {% if is_success %}
+    <h1>Đặt hàng thành công</h1>
+    <p>Cảm ơn bạn đã đặt hàng. Chúng tôi đã gửi email xác nhận đơn hàng.</p>
+    {% else %}
+    <h1>Thanh toán chưa thành công</h1>
+    <p>Giao dịch online không thành công. Bạn có thể đặt lại hoặc chọn COD.</p>
+    {% endif %}
+
+    {% if order %}
+    <div class="cart-block cart-totals">
+        <p><span>Mã đơn</span><strong>{{ order.order_number }}</strong></p>
+        <p><span>Trạng thái đơn</span><strong>{{ order.status }}</strong></p>
+        <p><span>Thanh toán</span><strong>{{ order.payment_status }}</strong></p>
+        <p><span>Tổng tiền</span><strong>{{ "{:,}".format(order.total) }} ₫</strong></p>
+    </div>
+    {% if items %}
+    <div class="cart-block" style="margin-top: 0.8rem;">
+        <h2>Sản phẩm</h2>
+        {% for item in items %}
+        <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.total_price) }} ₫</strong></p>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endif %}
+
+    <div style="margin-top: 1rem; display: flex; gap: 0.6rem; flex-wrap: wrap;">
+        <a href="{{ url_for('product_list') }}" class="btn-secondary">Tiếp tục mua sắm</a>
+        <a href="{{ url_for('cart_view') }}" class="btn-outline">Giỏ hàng</a>
+        {% if order and current_user and order.user_id == current_user.id %}
+        <a href="{{ url_for('account_order_detail', order_number=order.order_number) }}" class="btn-outline">Theo dõi đơn</a>
+        {% endif %}
+    </div>
+</section>
+{% endblock %}

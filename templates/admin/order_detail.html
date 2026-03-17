@@ -1,0 +1,90 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="split">
+    <div class="admin-card">
+        <h3>Thông tin đơn</h3>
+        <p><strong>Mã:</strong> {{ order.order_number }}</p>
+        <p><strong>Trạng thái:</strong> {{ order.status }}</p>
+        <p><strong>Thanh toán:</strong> {{ order.payment_status }}</p>
+        <p><strong>Tổng:</strong> {{ "{:,}".format(order.total) }} ₫</p>
+        <p><strong>Tạm tính:</strong> {{ "{:,}".format(order.subtotal) }} ₫</p>
+        <p><strong>Phí ship:</strong> {{ "{:,}".format(order.shipping_fee) }} ₫</p>
+        <p><strong>Giảm giá:</strong> {{ "{:,}".format(order.discount_amount) }} ₫</p>
+        <p><strong>Người nhận:</strong> {{ order.recipient_name }}</p>
+        <p><strong>Email:</strong> {{ order.email }}</p>
+        <p><strong>SĐT:</strong> {{ order.phone }}</p>
+        <p><strong>Địa chỉ:</strong> {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+        <p><strong>Đơn vị vận chuyển:</strong> {{ order.shipping_provider or '-' }}</p>
+        <p><strong>Mã vận đơn:</strong> {{ order.tracking_code or '-' }}</p>
+        <p><strong>Ghi chú:</strong> {{ order.notes }}</p>
+        <div class="admin-actions" style="justify-content: flex-start; margin-top: 1rem;">
+            <a class="btn btn-secondary" href="{{ url_for('admin_order_invoice', order_id=order.id) }}" target="_blank">In hóa đơn</a>
+            <a class="btn btn-secondary" href="{{ url_for('admin_order_packing', order_id=order.id) }}" target="_blank">Phiếu giao hàng</a>
+        </div>
+    </div>
+    <div class="admin-card">
+        <h3>Cập nhật trạng thái</h3>
+        <form method="post" class="form-grid">
+            <div class="form-group">
+                <label>Trạng thái</label>
+                <select name="status">
+                    {% for st in statuses %}
+                    <option value="{{ st }}" {% if order.status == st %}selected{% endif %}>{{ st }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <label>Ghi chú</label>
+                <textarea name="note"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Đơn vị vận chuyển</label>
+                <input name="shipping_provider" value="{{ order.shipping_provider or '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Mã vận đơn</label>
+                <input name="tracking_code" value="{{ order.tracking_code or '' }}" />
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <button class="btn btn-primary" type="submit">Cập nhật</button>
+            </div>
+        </form>
+        <h3 style="margin-top: 1.5rem;">Lịch sử trạng thái</h3>
+        <ul>
+            {% for event in events %}
+            <li>{{ event.created_at }} · {{ event.status }} · {{ event.note }} ({{ event.admin_name or event.admin_email }})</li>
+            {% else %}
+            <li class="muted">Chưa có lịch sử.</li>
+            {% endfor %}
+        </ul>
+    </div>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <h3>Sản phẩm</h3>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Sản phẩm</th>
+                <th>Biến thể</th>
+                <th>SL</th>
+                <th>Đơn giá</th>
+                <th>Thành tiền</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in items %}
+            <tr>
+                <td>{{ item.product_name }}</td>
+                <td>{{ item.variant_label }}</td>
+                <td>{{ item.qty }}</td>
+                <td>{{ "{:,}".format(item.unit_price) }} ₫</td>
+                <td>{{ "{:,}".format(item.total_price) }} ₫</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Chưa có sản phẩm.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

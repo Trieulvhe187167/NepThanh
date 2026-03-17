@@ -1,0 +1,71 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tiêu đề</label>
+            <input name="title" />
+        </div>
+        <div class="form-group">
+            <label>Ảnh URL</label>
+            <input name="image_url" required />
+        </div>
+        <div class="form-group">
+            <label>Link</label>
+            <input name="link_url" />
+        </div>
+        <div class="form-group">
+            <label>Vị trí</label>
+            <input name="position" value="homepage" />
+        </div>
+        <div class="form-group">
+            <label>Thứ tự</label>
+            <input name="sort_order" type="number" value="0" />
+        </div>
+        <div class="form-group">
+            <label><input type="checkbox" name="is_active" checked /> Hiển thị</label>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Thêm banner</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Ảnh</th>
+                <th>Tiêu đề</th>
+                <th>Vị trí</th>
+                <th>Active</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for banner in banners %}
+            <tr>
+                <td>{{ banner.image_url }}</td>
+                <td>{{ banner.title }}</td>
+                <td>{{ banner.position }}</td>
+                <td>{% if banner.is_active %}Yes{% else %}No{% endif %}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_banner_delete', banner_id=banner.id) }}" onsubmit="return confirm('Xóa banner?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Chưa có banner.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div style="margin-top: 1rem;">
+    <a class="btn btn-secondary" href="{{ url_for('admin_pages') }}">Trang tĩnh</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin_posts') }}">Blog</a>
+    <a class="btn btn-secondary" href="{{ url_for('admin_collections') }}">Bộ sưu tập</a>
+</div>
+{% endblock %}

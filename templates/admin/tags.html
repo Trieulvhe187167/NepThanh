@@ -1,0 +1,46 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Tên tag</label>
+            <input name="name" required />
+        </div>
+        <div class="form-group">
+            <label>Slug</label>
+            <input name="slug" />
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-primary" type="submit">Thêm tag</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tên</th>
+                <th>Slug</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tag in tags %}
+            <tr>
+                <td>{{ tag.name }}</td>
+                <td>{{ tag.slug }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('admin_tag_delete', tag_id=tag.id) }}" onsubmit="return confirm('Xóa tag?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3" class="muted">Chưa có tag.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

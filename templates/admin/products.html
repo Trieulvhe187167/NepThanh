@@ -1,0 +1,65 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Tìm kiếm</label>
+            <input type="text" name="q" value="{{ query_text }}" placeholder="Tên / slug" />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="" {% if not status_filter %}selected{% endif %}>Tất cả</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Đang bán</option>
+                <option value="hidden" {% if status_filter == 'hidden' %}selected{% endif %}>Ẩn</option>
+                <option value="archived" {% if status_filter == 'archived' %}selected{% endif %}>Lưu trữ</option>
+            </select>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-secondary" type="submit">Lọc</button>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <a class="btn btn-primary" href="{{ url_for('admin_product_new') }}">Thêm sản phẩm</a>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <div class="admin-actions" style="justify-content: flex-start; margin-bottom: 0.8rem;">
+        <a class="btn btn-secondary" href="{{ url_for('admin_categories') }}">Danh mục</a>
+        <a class="btn btn-secondary" href="{{ url_for('admin_tags') }}">Tag</a>
+        <a class="btn btn-secondary" href="{{ url_for('admin_collections') }}">Bộ sưu tập</a>
+    </div>
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tên sản phẩm</th>
+                <th>Nhân vật</th>
+                <th>Giá</th>
+                <th>Kho</th>
+                <th>Trạng thái</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for product in products %}
+            <tr>
+                <td>
+                    {{ product.name }}
+                    {% if product.is_featured %}<span class="badge success">Nổi bật</span>{% endif %}
+                </td>
+                <td>{{ product.character_name or '-' }}</td>
+                <td>{{ "{:,}".format(product.base_price) }} ₫</td>
+                <td>{{ product.stock_qty }}</td>
+                <td>{{ product.status }}</td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_product_edit', product_id=product.id) }}">Sửa</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="muted">Chưa có sản phẩm.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

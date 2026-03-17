@@ -1,0 +1,10 @@
+﻿{% extends "base.html" %}
+{% block content %}
+<article class="post-detail">
+    <h1>{{ post.title }}</h1>
+    {% if post.cover_image %}
+    <img src="{{ post.cover_image }}" alt="{{ post.title }}" style="max-width: 100%;" />
+    {% endif %}
+    <div class="post-body">{{ post.body_html | safe }}</div>
+</article>
+{% endblock %}

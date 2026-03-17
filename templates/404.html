@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="not-found">
+    <h1>404</h1>
+    <span class="ornament-line"></span>
+    <p>Xin lỗi, trang bạn tìm kiếm không tồn tại.<br>Hãy quay lại <a href="{{ url_for('home') }}">trang chủ</a> hoặc
+        tiếp tục khám phá các <a href="{{ url_for('product_list') }}">sản phẩm</a>.</p>
+    <a href="{{ url_for('home') }}" class="btn-primary" style="margin-top:1rem;">← Về trang chủ</a>
+</div>
+{% endblock %}

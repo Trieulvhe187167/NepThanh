@@ -1,0 +1,202 @@
+{% extends "base.html" %}
+
+{% block hero %}
+<div class="page-header">
+    <h1>🤖 AI Shop Assistant</h1>
+    <p>Trợ lý mua hàng thông minh – Hỏi giá, xem size, chốt đơn 24/7</p>
+</div>
+{% endblock %}
+
+{% block content %}
+<section class="assistant-page">
+    <div class="assistant-intro fade-in">
+        <div class="intro-grid">
+            <div class="intro-card">
+                <span class="intro-icon">💰</span>
+                <h3>Hỏi giá & tồn kho</h3>
+                <p>Kiểm tra giá, size, màu, tồn kho sản phẩm tức thì</p>
+            </div>
+            <div class="intro-card">
+                <span class="intro-icon">📋</span>
+                <h3>Chính sách</h3>
+                <p>Ship, đổi trả, thanh toán – giải đáp mọi thắc mắc</p>
+            </div>
+            <div class="intro-card">
+                <span class="intro-icon">🎭</span>
+                <h3>Gợi ý nhân vật</h3>
+                <p>Tìm nhân vật di sản phù hợp với phong cách của bạn</p>
+            </div>
+            <div class="intro-card">
+                <span class="intro-icon">🛒</span>
+                <h3>Chốt đơn ngay</h3>
+                <p>Đặt hàng trực tiếp qua chat – nhanh gọn, tiện lợi</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-fullpage" id="chatFullpage">
+        <div class="chat-messages" id="chatMessages">
+            <div class="chat-msg bot">
+                <div class="chat-avatar">🎭</div>
+                <div class="chat-bubble">
+                    Xin chào! Mình là trợ lý Nếp Thanh 👋<br>
+                    Mình có thể giúp bạn:<br>
+                    <strong>• Kiểm tra giá & tồn kho</strong><br>
+                    <strong>• Tư vấn size & chất liệu</strong><br>
+                    <strong>• Gợi ý nhân vật di sản</strong><br>
+                    <strong>• Chốt đơn hàng ngay</strong><br><br>
+                    Bạn muốn hỏi gì nào? 😊
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-suggestions" id="chatSuggestions">
+            <button class="suggest-chip" data-msg="Áo Chú Xẩm giá bao nhiêu?">💰 Giá áo Chú Xẩm</button>
+            <button class="suggest-chip" data-msg="Ship Hà Nội bao nhiêu?">🚚 Ship Hà Nội</button>
+            <button class="suggest-chip" data-msg="Đổi size trong bao lâu?">🔄 Đổi size</button>
+            <button class="suggest-chip" data-msg="Gợi ý nhân vật phù hợp với mình">🎭 Gợi ý nhân vật</button>
+            <button class="suggest-chip" data-msg="Mình muốn đặt hàng">🛒 Đặt hàng</button>
+        </div>
+
+        <form class="chat-input-bar" id="chatInputBar">
+            <button type="button" class="chat-reset-btn" id="chatResetBtn" title="Cuộc trò chuyện mới">🔄</button>
+            <input type="text" id="chatInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
+            <button type="submit" class="chat-send-btn" id="chatSendBtn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="22" y1="2" x2="11" y2="13" />
+                    <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+            </button>
+        </form>
+    </div>
+</section>
+
+<script>
+    (function () {
+        const messagesEl = document.getElementById('chatMessages');
+        const inputEl = document.getElementById('chatInput');
+        const formEl = document.getElementById('chatInputBar');
+        const suggestionsEl = document.getElementById('chatSuggestions');
+        const resetBtn = document.getElementById('chatResetBtn');
+        let sessionId = null;
+        let isSending = false;
+
+        function scrollToBottom() {
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+
+        function addMessage(role, html) {
+            const div = document.createElement('div');
+            div.className = 'chat-msg ' + role;
+            const avatar = role === 'bot' ? '🎭' : '👤';
+            div.innerHTML = `
+            <div class="chat-avatar">${avatar}</div>
+            <div class="chat-bubble">${html}</div>
+        `;
+            // Remove typing indicator if present
+            const typing = messagesEl.querySelector('.chat-typing');
+            if (typing) typing.remove();
+            messagesEl.appendChild(div);
+            scrollToBottom();
+        }
+
+        function showTyping() {
+            const div = document.createElement('div');
+            div.className = 'chat-msg bot chat-typing';
+            div.innerHTML = `
+            <div class="chat-avatar">🎭</div>
+            <div class="chat-bubble typing-dots">
+                <span></span><span></span><span></span>
+            </div>
+        `;
+            messagesEl.appendChild(div);
+            scrollToBottom();
+        }
+
+        function formatMarkdown(text) {
+            // Bold
+            text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            // Italic
+            text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            text = text.replace(/_(.+?)_/g, '<em>$1</em>');
+            // Line breaks
+            text = text.replace(/\n/g, '<br>');
+            return text;
+        }
+
+        async function sendMessage(msg) {
+            if (isSending || !msg.trim()) return;
+            isSending = true;
+            suggestionsEl.style.display = 'none';
+
+            addMessage('user', msg);
+            inputEl.value = '';
+            showTyping();
+
+            try {
+                const resp = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: msg, session_id: sessionId })
+                });
+                const data = await resp.json();
+                sessionId = data.session_id || sessionId;
+                addMessage('bot', formatMarkdown(data.reply || 'Xin lỗi, mình gặp lỗi rồi.'));
+
+                // Show action buttons if relevant
+                if (data.action === 'handoff') {
+                    addActionButton('📞 Gặp nhân viên', 'Cho mình sdt để nhân viên gọi lại');
+                }
+            } catch (err) {
+                addMessage('bot', 'Lỗi kết nối, bạn thử lại nhé! 🙏');
+            }
+            isSending = false;
+        }
+
+        function addActionButton(label, msg) {
+            const div = document.createElement('div');
+            div.className = 'chat-action-row';
+            const btn = document.createElement('button');
+            btn.className = 'suggest-chip action-chip';
+            btn.textContent = label;
+            btn.onclick = () => sendMessage(msg);
+            div.appendChild(btn);
+            messagesEl.appendChild(div);
+            scrollToBottom();
+        }
+
+        formEl.addEventListener('submit', function (e) {
+            e.preventDefault();
+            sendMessage(inputEl.value);
+        });
+
+        document.querySelectorAll('.suggest-chip').forEach(btn => {
+            btn.addEventListener('click', function () {
+                sendMessage(this.dataset.msg);
+            });
+        });
+
+        resetBtn.addEventListener('click', async function () {
+            try {
+                await fetch('/api/chat/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: sessionId })
+                });
+            } catch (e) { }
+            sessionId = null;
+            messagesEl.innerHTML = `
+            <div class="chat-msg bot">
+                <div class="chat-avatar">🎭</div>
+                <div class="chat-bubble">
+                    Xin chào! Cuộc trò chuyện mới 👋<br>Bạn muốn hỏi gì nào? 😊
+                </div>
+            </div>
+        `;
+            suggestionsEl.style.display = 'flex';
+        });
+
+        scrollToBottom();
+    })();
+</script>
+{% endblock %}

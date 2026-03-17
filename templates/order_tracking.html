@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-page">
+    <h1>Theo dõi đơn hàng</h1>
+    <div class="account-block">
+        <form method="post" class="checkout-grid">
+            <label>
+                Mã đơn hàng
+                <input type="text" name="order_number" value="{{ order_number }}" placeholder="VD: NT20260204ABCD" required />
+            </label>
+            <label>
+                Email đặt hàng
+                <input type="email" name="email" value="{{ email }}" required />
+            </label>
+            <div>
+                <button type="submit" class="btn-secondary">Tra cứu</button>
+            </div>
+        </form>
+    </div>
+
+    {% if order %}
+    <div class="account-layout">
+        <div class="account-block">
+            <h2>Thông tin đơn</h2>
+            <p>Mã đơn: <strong>{{ order.order_number }}</strong></p>
+            <p>Trạng thái: <span class="status-pill">{{ order.status }}</span></p>
+            <p>Thanh toán: <span class="status-pill">{{ order.payment_status }}</span></p>
+            <p>Tổng: <strong>{{ "{:,}".format(order.total) }} ₫</strong></p>
+            {% if order.tracking_code %}
+            <p>Mã vận đơn: <strong>{{ order.tracking_code }}</strong></p>
+            <p>Đơn vị vận chuyển: {{ order.shipping_provider or '-' }}</p>
+            {% else %}
+            <p class="field-hint">Chưa có mã vận đơn.</p>
+            {% endif %}
+        </div>
+        <div class="account-block">
+            <h2>Sản phẩm</h2>
+            {% for item in items %}
+            <p>{{ item.product_name }} x{{ item.qty }} - <strong>{{ "{:,}".format(item.total_price) }} ₫</strong></p>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="account-block" style="margin-top: 1rem;">
+        <h2>Lịch sử trạng thái</h2>
+        <ul class="timeline-list">
+            {% for event in events %}
+            <li>
+                <strong>{{ event.status }}</strong> - {{ event.created_at }}
+                {% if event.note %}<div class="field-hint">{{ event.note }}</div>{% endif %}
+            </li>
+            {% else %}
+            <li class="field-hint">Chưa có cập nhật.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+</section>
+{% endblock %}

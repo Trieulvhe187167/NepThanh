@@ -1,0 +1,44 @@
+{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+
+<div class="admin-card">
+    <h3 style="margin-bottom:0.75rem;">Tao batch QR moi</h3>
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Bien the (SKU / size / mau)</label>
+            <select name="variant_id" required>
+                <option value="">-- Chon bien the --</option>
+                {% for variant in variants %}
+                <option value="{{ variant.id }}" {% if form_values.variant_id|int == variant.id %}selected{% endif %}>
+                    {{ variant.product_name }} - {{ variant.sku }} - {{ variant.size }}/{{ variant.color }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Nhan vat</label>
+            <select name="character_id" required>
+                <option value="">-- Chon nhan vat --</option>
+                {% for char in characters %}
+                <option value="{{ char.id }}" {% if form_values.character_id|int == char.id %}selected{% endif %}>
+                    {{ char.name }} ({{ char.slug }})
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Batch code</label>
+            <input name="batch_code" value="{{ form_values.batch_code }}" placeholder="NE-2026-02" required />
+        </div>
+        <div class="form-group">
+            <label>So luong tem</label>
+            <input type="number" name="quantity" min="1" max="5000" value="{{ form_values.quantity }}" required />
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Tao batch</button>
+            <a class="btn btn-secondary" href="{{ url_for('admin_qr') }}">Quay lai QR Manager</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

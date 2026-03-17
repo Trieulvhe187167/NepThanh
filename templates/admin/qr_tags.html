@@ -1,0 +1,76 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+<div class="admin-card">
+    <form method="post" class="form-grid">
+        <div class="form-group">
+            <label>Biến thể</label>
+            <select name="variant_id" required>
+                <option value="">-- Chọn --</option>
+                {% for variant in variants %}
+                <option value="{{ variant.id }}">{{ variant.product_name }} - {{ variant.size }}/{{ variant.color }} ({{ variant.sku }})</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Nhân vật</label>
+            <select name="character_id" required>
+                <option value="">-- Chọn --</option>
+                {% for char in characters %}
+                <option value="{{ char.id }}">{{ char.name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Batch</label>
+            <input name="batch_code" />
+        </div>
+        <div class="form-group">
+            <label>Serial</label>
+            <input name="serial_no" />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+            </select>
+        </div>
+        <div class="form-group" style="grid-column: 1 / -1;">
+            <button class="btn btn-primary" type="submit">Tạo QR</button>
+        </div>
+    </form>
+</div>
+
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Token</th>
+                <th>Sản phẩm</th>
+                <th>Nhân vật</th>
+                <th>Lượt quét</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for tag in tags %}
+            <tr>
+                <td>{{ tag.token }}</td>
+                <td>{{ tag.product_name }}</td>
+                <td>{{ tag.character_name }}</td>
+                <td>{{ tag.scan_count }}</td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_qr_download', qr_id=tag.id) }}">Download PNG</a>
+                    <form method="post" action="{{ url_for('admin_qr_delete', qr_id=tag.id) }}" style="display: inline;" onsubmit="return confirm('Xóa QR?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Chưa có QR.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

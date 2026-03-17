@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{{ title }}</title>
+    {% if description %}
+    <meta name="description" content="{{ description }}" />
+    {% endif %}
+    <meta name="keywords" content="áo phông, di sản Việt, thời trang, văn hoá truyền thống, QR code, {{ site_name }}" />
+    <meta property="og:title" content="{{ title }}" />
+    <meta property="og:description" content="{{ description }}" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="{{ request.url }}" />
+    <!-- CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
+</head>
+
+<body class="{{ body_class if body_class else '' }}" data-auth-open="{{ auth_open if auth_open else '' }}"
+    data-auth-next="{{ auth_next if auth_next else request.full_path.rstrip('?') }}"
+    data-auth-close="{{ auth_close_url if auth_close_url else '' }}">
+    <header>
+        <div class="container header-container">
+            <a href="{{ url_for('home') }}" class="logo-link">
+                <img src="{{ url_for('static', filename='images/logo/logo3.png') }}" alt="Nếp Thanh Logo"
+                    class="header-logo-img" />
+            </a>
+
+            <nav id="mainNav">
+                <ul class="nav-links">
+                    <li><a href="{{ url_for('home') }}"
+                            class="nav-link {% if request.endpoint == 'home' %}active{% endif %}">Trang chủ</a></li>
+                    <li><a href="{{ url_for('product_list') }}"
+                            class="nav-link {% if request.endpoint == 'product_list' %}active{% endif %}">Sản phẩm</a>
+                    </li>
+                    <li><a href="{{ url_for('about') }}"
+                            class="nav-link {% if request.endpoint == 'about' %}active{% endif %}">Về chúng tôi</a></li>
+                    <li><a href="{{ url_for('contact') }}"
+                            class="nav-link {% if request.endpoint == 'contact' %}active{% endif %}">Liên hệ</a></li>
+                </ul>
+
+                <div class="nav-actions">
+                    <a href="{{ url_for('cart_view') }}" class="nav-icon-btn" title="Giỏ hàng">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="9" cy="21" r="1"></circle>
+                            <circle cx="20" cy="21" r="1"></circle>
+                            <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                        </svg>
+                        {% if cart_count > 0 %}
+                        <span class="cart-badge">{{ cart_count }}</span>
+                        {% endif %}
+                    </a>
+
+                    {% if current_user %}
+                    <div class="user-dropdown">
+                        <button class="nav-icon-btn dropdown-toggle"
+                            style="background: transparent; border: none; padding: 0.5rem; cursor: pointer; color: white; display: flex; align-items: center; justify-content: center; opacity: 0.85; transition: opacity 0.2s;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="12" cy="7" r="4"></circle>
+                            </svg>
+                        </button>
+                        <div class="dropdown-menu">
+                            <div class="dropdown-item user-info">{{ current_user.full_name or current_user.email }}
+                            </div>
+                            {% if is_admin %}
+                            <a href="{{ url_for('admin_dashboard') }}" class="dropdown-item">Admin</a>
+                            {% endif %}
+                            <a href="{{ url_for('account_profile') }}" class="dropdown-item">Tài khoản</a>
+                            <a href="{{ url_for('account_orders') }}" class="dropdown-item">Đơn của tôi</a>
+                            <a href="{{ url_for('logout') }}" class="dropdown-item">Đăng xuất</a>
+                        </div>
+                    </div>
+                    {% else %}
+                    <a href="{{ url_for('login', next=request.full_path.rstrip('?')) }}"
+                        class="nav-btn-dark js-auth-open" data-auth-open="login"
+                        data-auth-next="{{ request.full_path.rstrip('?') }}">Login</a>
+                    <a href="{{ url_for('signup', next=request.full_path.rstrip('?')) }}"
+                        class="nav-btn-light js-auth-open" data-auth-open="signup"
+                        data-auth-next="{{ request.full_path.rstrip('?') }}">Sign up</a>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <button class="hamburger" id="menuToggle" aria-label="Menu">
+                <span></span><span></span><span></span>
+            </button>
+        </div>
+    </header>
+    <main class="{{ main_class if main_class else '' }}">
+        {% block hero %}{% endblock %}
+        <div class="container">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+            <div class="flash-stack">
+                {% for category, message in messages %}
+                <div class="flash-message {{ category }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% endwith %}
+            {% block content %}{% endblock %}
+        </div>
+        {% block sections %}{% endblock %}
+    </main>
+    <footer>
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-brand">
+                    <a href="{{ url_for('home') }}" class="footer-logo" aria-label="{{ site_name }}"><img
+                            src="{{ url_for('static', filename='images/logo/logo3.png') }}" alt="{{ site_name }}"
+                            class="footer-logo-img" /></a>
+                    <p>Nền tảng thời trang kể chuyện nghệ thuật truyền thống Việt Nam. Mỗi chiếc áo là một hành trình
+                        khám phá văn hoá qua QR và âm thanh.</p>
+                </div>
+                <div class="footer-links">
+                    <h4>Liên kết</h4>
+                    <ul>
+                        <li><a href="{{ url_for('home') }}">Trang chủ</a></li>
+                        <li><a href="{{ url_for('product_list') }}">Sản phẩm</a></li>
+                        <li><a href="{{ url_for('about') }}">Về chúng tôi</a></li>
+                        <li><a href="{{ url_for('contact') }}">Liên hệ</a></li>
+                    </ul>
+                </div>
+                <div class="footer-contact">
+                    <h4>Liên hệ</h4>
+                    <p>📧 <a href="mailto:nepthanh6886@gmail.com">nepthanh6886@gmail.com</a></p>
+                    <p>📱 Facebook: <a href="https://facebook.com/nepthanh" target="_blank" rel="noopener">nepthanh</a>
+                    </p>
+                    <p>📷 Instagram: <a href="https://instagram.com/nepthanh" target="_blank"
+                            rel="noopener">@nepthanh</a></p>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; {{ current_year }} {{ site_name }}. Tất cả quyền được bảo lưu.</p>
+                <p><a href="{{ url_for('sitemap') }}">Sitemap</a></p>
+            </div>
+        </div>
+    </footer>
+    <!-- Scroll to top -->
+    <button class="scroll-top" id="scrollTop" aria-label="Lên đầu trang">↑</button>
+    <!-- Auth Modal -->
+    <div class="auth-modal" data-auth-modal data-active="login">
+        <div class="auth-modal-overlay" data-auth-overlay></div>
+        <div class="auth-modal-dialog" role="dialog" aria-modal="true">
+            <div class="auth-modal-panel" data-auth-panel="login">
+                <div class="auth-card auth-grid">
+                    <button type="button" class="auth-close js-auth-close" aria-label="Đóng">×</button>
+                    <div class="auth-form-side">
+                        <h2>Đăng nhập</h2>
+                        {% if auth_open == "login" and auth_error %}
+                        <p class="auth-error">{{ auth_error }}</p>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('login') }}" class="auth-form">
+                            <input type="hidden" name="next"
+                                value="{{ auth_next if auth_next else request.full_path.rstrip('?') }}"
+                                data-auth-next-input />
+                            <label for="login_email">Email hoặc số điện thoại</label>
+                            <input id="login_email" name="email" type="email" autocomplete="email" required />
+                            <label for="login_password">Mật khẩu</label>
+                            <input id="login_password" name="password" type="password" autocomplete="current-password"
+                                required />
+                            <button type="submit" class="auth-submit">Đăng nhập</button>
+                        </form>
+                        <div class="auth-divider"><span>Hoặc</span></div>
+                        {% if google_enabled %}
+                        <a class="google-btn"
+                            href="{{ url_for('google_login', next=auth_next if auth_next else request.full_path.rstrip('?')) }}">
+                            <span class="google-icon">G</span>
+                            Tiếp tục với Google
+                        </a>
+                        {% else %}
+                        <div class="google-btn is-disabled" aria-disabled="true">
+                            <span class="google-icon">G</span>
+                            Google chưa được cấu hình
+                        </div>
+                        {% endif %}
+                        <p class="auth-switch">
+                            Chưa có tài khoản?
+                            <button type="button" class="auth-switch-link" data-auth-target="signup">Đăng ký</button>
+                        </p>
+                    </div>
+                    <div class="auth-branding-side">
+                        <img src="{{ url_for('static', filename='images/logo/logo.jpg') }}" alt="Nếp Thanh Logo"
+                            class="auth-logo">
+                        <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
+                    </div>
+                </div>
+            </div>
+            <div class="auth-modal-panel" data-auth-panel="signup">
+                <div class="auth-card auth-grid">
+                    <button type="button" class="auth-close js-auth-close" aria-label="Đóng">×</button>
+                    <div class="auth-form-side">
+                        <h2>Đăng ký</h2>
+                        {% if auth_open == "signup" and auth_error %}
+                        <p class="auth-error">{{ auth_error }}</p>
+                        {% endif %}
+                        <form method="post" action="{{ url_for('signup') }}" class="auth-form">
+                            <input type="hidden" name="next"
+                                value="{{ auth_next if auth_next else request.full_path.rstrip('?') }}"
+                                data-auth-next-input />
+                            <label for="signup_email">Email hoặc số điện thoại</label>
+                            <input id="signup_email" name="email" type="email" autocomplete="email" required />
+                            <label for="signup_password">Mật khẩu</label>
+                            <input id="signup_password" name="password" type="password" autocomplete="new-password"
+                                required />
+                            <label for="signup_confirm">Xác nhận mật khẩu</label>
+                            <input id="signup_confirm" name="confirm_password" type="password"
+                                autocomplete="new-password" required />
+                            <button type="submit" class="auth-submit">Đăng ký</button>
+                        </form>
+                        <div class="auth-divider"><span>Hoặc</span></div>
+                        {% if google_enabled %}
+                        <a class="google-btn"
+                            href="{{ url_for('google_login', next=auth_next if auth_next else request.full_path.rstrip('?')) }}">
+                            <span class="google-icon">G</span>
+                            Tiếp tục với Google
+                        </a>
+                        {% else %}
+                        <div class="google-btn is-disabled" aria-disabled="true">
+                            <span class="google-icon">G</span>
+                            Google chưa được cấu hình
+                        </div>
+                        {% endif %}
+                        <p class="auth-switch">
+                            Đã có tài khoản?
+                            <button type="button" class="auth-switch-link" data-auth-target="login">Đăng nhập</button>
+                        </p>
+                    </div>
+                    <div class="auth-branding-side">
+                        <img src="{{ url_for('static', filename='images/logo/logo.jpg') }}" alt="Nếp Thanh Logo"
+                            class="auth-logo">
+                        <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script>
+        (function () {
+            /* ── Auth Modal ── */
+            var modal = document.querySelector("[data-auth-modal]");
+            if (!modal) return;
+            var body = document.body;
+            var overlay = modal.querySelector("[data-auth-overlay]");
+            var openers = document.querySelectorAll(".js-auth-open");
+            var closeButtons = modal.querySelectorAll(".js-auth-close");
+            var switchers = modal.querySelectorAll("[data-auth-target]");
+            var nextInputs = modal.querySelectorAll("[data-auth-next-input]");
+
+            function setNext(value) {
+                if (!value) return;
+                nextInputs.forEach(function (input) { input.value = value; });
+            }
+
+            function openModal(type, next) {
+                var panel = type || "login";
+                modal.setAttribute("data-active", panel);
+                body.classList.add("auth-modal-open");
+                setNext(next || body.dataset.authNext);
+            }
+
+            function closeModal() {
+                body.classList.remove("auth-modal-open");
+            }
+
+            openers.forEach(function (link) {
+                link.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    openModal(link.dataset.authOpen, link.dataset.authNext);
+                });
+            });
+
+            switchers.forEach(function (button) {
+                button.addEventListener("click", function () {
+                    openModal(button.dataset.authTarget, body.dataset.authNext);
+                });
+            });
+
+            closeButtons.forEach(function (button) {
+                button.addEventListener("click", function (event) {
+                    event.preventDefault();
+                    if (body.dataset.authOpen && body.dataset.authClose) {
+                        window.location.href = body.dataset.authClose;
+                    } else {
+                        closeModal();
+                    }
+                });
+            });
+
+            overlay.addEventListener("click", closeModal);
+            document.addEventListener("keydown", function (event) {
+                if (event.key === "Escape" && body.classList.contains("auth-modal-open")) {
+                    closeModal();
+                }
+            });
+
+            if (body.dataset.authOpen) {
+                openModal(body.dataset.authOpen, body.dataset.authNext);
+            }
+
+            /* ── Hamburger Menu ── */
+            var hamburger = document.getElementById("menuToggle");
+            var nav = document.getElementById("mainNav");
+            if (hamburger && nav) {
+                hamburger.addEventListener("click", function () {
+                    hamburger.classList.toggle("is-active");
+                    nav.classList.toggle("is-open");
+                });
+                nav.querySelectorAll("a").forEach(function (link) {
+                    link.addEventListener("click", function () {
+                        hamburger.classList.remove("is-active");
+                        nav.classList.remove("is-open");
+                    });
+                });
+            }
+
+            /* ── Scroll to Top & Header Scroll ── */
+            var scrollBtn = document.getElementById("scrollTop");
+            var header = document.querySelector("header");
+
+            window.addEventListener("scroll", function () {
+                var scrollY = window.scrollY;
+                if (scrollBtn) {
+                    if (scrollY > 400) {
+                        scrollBtn.classList.add("is-visible");
+                    } else {
+                        scrollBtn.classList.remove("is-visible");
+                    }
+                }
+
+                if (header) {
+                    if (scrollY > 50) {
+                        header.classList.add("header-scrolled");
+                    } else {
+                        header.classList.remove("header-scrolled");
+                    }
+                }
+            });
+
+            if (scrollBtn) {
+                scrollBtn.addEventListener("click", function () {
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                });
+            }
+
+            /* ── Fade-in on Scroll ── */
+            var fadeEls = document.querySelectorAll(".fade-in");
+            if (fadeEls.length && "IntersectionObserver" in window) {
+                var observer = new IntersectionObserver(function (entries) {
+                    entries.forEach(function (entry) {
+                        if (entry.isIntersecting) {
+                            entry.target.classList.add("is-visible");
+                            observer.unobserve(entry.target);
+                        }
+                    });
+                }, { threshold: 0.1 });
+                fadeEls.forEach(function (el) { observer.observe(el); });
+            }
+        })();
+    </script>
+
+    <!-- ── Floating Chat Widget ── -->
+    {% if request.endpoint != 'chatbot.assistant_page' %}
+    <div class="chat-widget" id="chatWidget">
+        <button class="chat-fab" id="chatFab" aria-label="Mở trợ lý AI">
+            <span class="fab-icon">💬</span>
+            <span class="fab-close">✕</span>
+        </button>
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-window-header">
+                <div class="chat-window-title">
+                    <span>🎭</span> Trợ lý Nếp Thanh
+                </div>
+                <div class="chat-window-actions">
+                    <button class="cw-btn" id="cwReset" title="Cuộc trò chuyện mới">🔄</button>
+                    <button class="cw-btn" id="cwExpand" title="Mở rộng">
+                        <a href="/assistant" style="color:inherit;text-decoration:none">↗</a>
+                    </button>
+                </div>
+            </div>
+            <div class="chat-window-body" id="cwMessages">
+                <div class="chat-msg bot">
+                    <div class="chat-avatar">🎭</div>
+                    <div class="chat-bubble">Chào bạn! Mình có thể giúp gì? 😊</div>
+                </div>
+            </div>
+            <div class="chat-window-chips" id="cwChips">
+                <button class="suggest-chip" data-msg="Xem giá sản phẩm">💰 Giá sản phẩm</button>
+                <button class="suggest-chip" data-msg="Ship bao nhiêu?">🚚 Phí ship</button>
+                <button class="suggest-chip" data-msg="Mình muốn đặt hàng">🛒 Đặt hàng</button>
+            </div>
+            <form class="chat-window-input" id="cwForm">
+                <input type="text" id="cwInput" placeholder="Nhập tin nhắn..." autocomplete="off" />
+                <button type="submit" class="chat-send-btn">➤</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        (function () {
+            var fab = document.getElementById('chatFab');
+            var win = document.getElementById('chatWindow');
+            var widget = document.getElementById('chatWidget');
+            var msgs = document.getElementById('cwMessages');
+            var form = document.getElementById('cwForm');
+            var input = document.getElementById('cwInput');
+            var chips = document.getElementById('cwChips');
+            var resetBtn = document.getElementById('cwReset');
+            var sessionId = null;
+            var sending = false;
+
+            fab.addEventListener('click', function () {
+                widget.classList.toggle('is-open');
+                if (widget.classList.contains('is-open')) {
+                    input.focus();
+                    msgs.scrollTop = msgs.scrollHeight;
+                }
+            });
+
+            function fmt(t) {
+                t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+                t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+                t = t.replace(/_(.+?)_/g, '<em>$1</em>');
+                return t.replace(/\n/g, '<br>');
+            }
+
+            function addMsg(role, html) {
+                var typing = msgs.querySelector('.chat-typing');
+                if (typing) typing.remove();
+                var d = document.createElement('div');
+                d.className = 'chat-msg ' + role;
+                d.innerHTML = '<div class="chat-avatar">' + (role === 'bot' ? '🎭' : '👤') + '</div><div class="chat-bubble">' + html + '</div>';
+                msgs.appendChild(d);
+                msgs.scrollTop = msgs.scrollHeight;
+            }
+
+            function showTyping() {
+                var d = document.createElement('div');
+                d.className = 'chat-msg bot chat-typing';
+                d.innerHTML = '<div class="chat-avatar">🎭</div><div class="chat-bubble typing-dots"><span></span><span></span><span></span></div>';
+                msgs.appendChild(d);
+                msgs.scrollTop = msgs.scrollHeight;
+            }
+
+            async function send(msg) {
+                if (sending || !msg.trim()) return;
+                sending = true;
+                chips.style.display = 'none';
+                addMsg('user', msg);
+                input.value = '';
+                showTyping();
+                try {
+                    var r = await fetch('/api/chat', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: msg, session_id: sessionId })
+                    });
+                    var data = await r.json();
+                    sessionId = data.session_id || sessionId;
+                    addMsg('bot', fmt(data.reply || 'Lỗi rồi 🙏'));
+                } catch (e) { addMsg('bot', 'Lỗi kết nối 🙏'); }
+                sending = false;
+            }
+
+            form.addEventListener('submit', function (e) { e.preventDefault(); send(input.value); });
+            document.querySelectorAll('#cwChips .suggest-chip').forEach(function (b) {
+                b.addEventListener('click', function () { send(b.dataset.msg); });
+            });
+            resetBtn.addEventListener('click', async function () {
+                try { await fetch('/api/chat/reset', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ session_id: sessionId }) }); } catch (e) { }
+                sessionId = null;
+                msgs.innerHTML = '<div class="chat-msg bot"><div class="chat-avatar">🎭</div><div class="chat-bubble">Chào bạn! Mình có thể giúp gì? 😊</div></div>';
+                chips.style.display = 'flex';
+            });
+        })();
+    </script>
+    {% endif %}
+</body>
+
+</html>

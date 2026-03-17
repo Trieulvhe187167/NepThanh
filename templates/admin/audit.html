@@ -1,0 +1,29 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Thời gian</th>
+                <th>Admin</th>
+                <th>Hành động</th>
+                <th>Đối tượng</th>
+                <th>Chi tiết</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in logs %}
+            <tr>
+                <td>{{ log.created_at }}</td>
+                <td>{{ log.admin_email }}</td>
+                <td>{{ log.action }}</td>
+                <td>{{ log.entity_type }} {{ log.entity_id }}</td>
+                <td>{{ log.details_json }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="muted">Chưa có log.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

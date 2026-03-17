@@ -1,0 +1,35 @@
+﻿{% extends "admin/base.html" %}
+{% block content %}
+<div class="admin-card">
+    <a class="btn btn-primary" href="{{ url_for('admin_post_new') }}">Tạo bài viết</a>
+</div>
+<div class="admin-card" style="margin-top: 1.5rem;">
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>Tiêu đề</th>
+                <th>Slug</th>
+                <th>Trạng thái</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for post in posts %}
+            <tr>
+                <td>{{ post.title }}</td>
+                <td>{{ post.slug }}</td>
+                <td>{{ post.status }}</td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('admin_post_edit', post_id=post.id) }}">Sửa</a>
+                    <form method="post" action="{{ url_for('admin_post_delete', post_id=post.id) }}" style="display: inline;" onsubmit="return confirm('Xóa bài?')">
+                        <button class="btn btn-danger" type="submit">Xóa</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="muted">Chưa có bài viết.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

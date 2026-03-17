@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-page">
+    <h1>Tài khoản cá nhân</h1>
+    <div class="account-layout">
+        <div class="account-block">
+            <h2>Thông tin hồ sơ</h2>
+            <form method="post" class="checkout-grid">
+                <label>
+                    Họ tên
+                    <input type="text" name="full_name" value="{{ profile.full_name or '' }}" />
+                </label>
+                <label>
+                    Email
+                    <input type="email" value="{{ profile.email or '' }}" disabled />
+                </label>
+                <label>
+                    Số điện thoại
+                    <input type="text" name="phone" value="{{ profile.phone or '' }}" />
+                </label>
+                <div>
+                    <button type="submit" class="btn-secondary">Lưu hồ sơ</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="account-block">
+            <h2>Địa chỉ giao hàng</h2>
+            {% for address in addresses %}
+            <form method="post" action="{{ url_for('account_address_update', address_id=address.id) }}" class="address-card">
+                <div class="address-head">
+                    <strong>{{ address.recipient_name or profile.full_name or 'Người nhận' }}</strong>
+                    {% if address.is_default %}<span class="status-pill">Mặc định</span>{% endif %}
+                </div>
+                <div class="checkout-grid">
+                    <label>Tên người nhận<input type="text" name="recipient_name" value="{{ address.recipient_name or '' }}" /></label>
+                    <label>Số điện thoại<input type="text" name="phone" value="{{ address.phone or '' }}" /></label>
+                    <label>Địa chỉ<input type="text" name="line1" value="{{ address.line1 }}" required /></label>
+                    <label>Địa chỉ bổ sung<input type="text" name="line2" value="{{ address.line2 or '' }}" /></label>
+                    <label>Phường/xã<input type="text" name="ward" value="{{ address.ward or '' }}" /></label>
+                    <label>Quận/huyện<input type="text" name="district" value="{{ address.district }}" required /></label>
+                    <label>Tỉnh/thành<input type="text" name="province" value="{{ address.province }}" required /></label>
+                </div>
+                <label class="check-row">
+                    <input type="checkbox" name="is_default" value="1" {% if address.is_default %}checked{% endif %} />
+                    Đặt làm địa chỉ mặc định
+                </label>
+                <div class="address-actions">
+                    <button type="submit" class="btn-secondary">Cập nhật</button>
+                </div>
+            </form>
+            <div class="address-actions">
+                {% if not address.is_default %}
+                <form method="post" action="{{ url_for('account_address_default', address_id=address.id) }}">
+                    <button type="submit" class="btn-outline">Đặt mặc định</button>
+                </form>
+                {% endif %}
+                <form method="post" action="{{ url_for('account_address_delete', address_id=address.id) }}" onsubmit="return confirm('Xóa địa chỉ này?')">
+                    <button type="submit" class="btn-link">Xóa</button>
+                </form>
+            </div>
+            {% else %}
+            <p class="field-hint">Chưa có địa chỉ lưu.</p>
+            {% endfor %}
+
+            <h3>Thêm địa chỉ mới</h3>
+            <form method="post" action="{{ url_for('account_address_add') }}" class="address-card">
+                <div class="checkout-grid">
+                    <label>Tên người nhận<input type="text" name="recipient_name" value="{{ profile.full_name or '' }}" /></label>
+                    <label>Số điện thoại<input type="text" name="phone" value="{{ profile.phone or '' }}" /></label>
+                    <label>Địa chỉ<input type="text" name="line1" required /></label>
+                    <label>Địa chỉ bổ sung<input type="text" name="line2" /></label>
+                    <label>Phường/xã<input type="text" name="ward" /></label>
+                    <label>Quận/huyện<input type="text" name="district" required /></label>
+                    <label>Tỉnh/thành<input type="text" name="province" required /></label>
+                </div>
+                <label class="check-row">
+                    <input type="checkbox" name="is_default" value="1" />
+                    Đặt làm địa chỉ mặc định
+                </label>
+                <button type="submit" class="btn-secondary">Thêm địa chỉ</button>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

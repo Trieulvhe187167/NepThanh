@@ -1,0 +1,447 @@
+﻿import os
+import sqlite3
+from datetime import datetime
+from werkzeug.security import generate_password_hash
+
+from modules.config import DB_PATH
+
+
+def _get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def _ensure_column(conn, table, column, column_sql):
+    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    if any(row["name"] == column for row in rows):
+        return
+    conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_sql}")
+
+
+def init_db():
+    conn = _get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS orders (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_number TEXT UNIQUE NOT NULL,
+            user_id INTEGER,
+            status TEXT NOT NULL DEFAULT 'new',
+            subtotal INTEGER NOT NULL DEFAULT 0,
+            shipping_fee INTEGER NOT NULL DEFAULT 0,
+            discount_amount INTEGER NOT NULL DEFAULT 0,
+            total INTEGER NOT NULL DEFAULT 0,
+            payment_status TEXT DEFAULT 'unpaid',
+            recipient_name TEXT,
+            email TEXT,
+            phone TEXT,
+            line1 TEXT,
+            line2 TEXT,
+            ward TEXT,
+            district TEXT,
+            province TEXT,
+            country TEXT DEFAULT 'VN',
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            completed_at TEXT,
+            canceled_at TEXT,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS order_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            product_id INTEGER,
+            variant_id INTEGER,
+            product_name TEXT NOT NULL,
+            variant_label TEXT,
+            sku TEXT,
+            qty INTEGER NOT NULL DEFAULT 1,
+            unit_price INTEGER NOT NULL DEFAULT 0,
+            total_price INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE SET NULL,
+            FOREIGN KEY(variant_id) REFERENCES product_variants(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS order_status_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            order_id INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            note TEXT,
+            admin_id INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE CASCADE,
+            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS categories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            description TEXT,
+            parent_id INTEGER,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(parent_id) REFERENCES categories(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_categories (
+            product_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            PRIMARY KEY(product_id, category_id),
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_tags (
+            product_id INTEGER NOT NULL,
+            tag_id INTEGER NOT NULL,
+            PRIMARY KEY(product_id, tag_id),
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+            FOREIGN KEY(tag_id) REFERENCES tags(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS banners (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT,
+            image_url TEXT NOT NULL,
+            link_url TEXT,
+            position TEXT DEFAULT 'homepage',
+            sort_order INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS pages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            body_html TEXT,
+            status TEXT DEFAULT 'draft',
+            seo_title TEXT,
+            seo_description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            excerpt TEXT,
+            body_html TEXT,
+            cover_image TEXT,
+            status TEXT DEFAULT 'draft',
+            published_at TEXT,
+            seo_title TEXT,
+            seo_description TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS collections (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            description TEXT,
+            image_url TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS coupons (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT UNIQUE NOT NULL,
+            discount_type TEXT NOT NULL,
+            value INTEGER NOT NULL,
+            min_order INTEGER DEFAULT 0,
+            max_discount INTEGER,
+            starts_at TEXT,
+            ends_at TEXT,
+            usage_limit INTEGER,
+            used_count INTEGER DEFAULT 0,
+            is_active INTEGER DEFAULT 1,
+            applies_to TEXT DEFAULT 'all',
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS coupon_products (
+            coupon_id INTEGER NOT NULL,
+            product_id INTEGER NOT NULL,
+            PRIMARY KEY(coupon_id, product_id),
+            FOREIGN KEY(coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS coupon_categories (
+            coupon_id INTEGER NOT NULL,
+            category_id INTEGER NOT NULL,
+            PRIMARY KEY(coupon_id, category_id),
+            FOREIGN KEY(coupon_id) REFERENCES coupons(id) ON DELETE CASCADE,
+            FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS promotions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            promo_type TEXT NOT NULL,
+            discount_type TEXT NOT NULL,
+            value INTEGER NOT NULL,
+            category_id INTEGER,
+            starts_at TEXT,
+            ends_at TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(category_id) REFERENCES categories(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS inventory_movements (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            variant_id INTEGER NOT NULL,
+            change_qty INTEGER NOT NULL,
+            reason TEXT,
+            note TEXT,
+            admin_id INTEGER,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(variant_id) REFERENCES product_variants(id) ON DELETE CASCADE,
+            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            admin_id INTEGER,
+            action TEXT NOT NULL,
+            entity_type TEXT,
+            entity_id INTEGER,
+            details_json TEXT,
+            ip_address TEXT,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS customer_notes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            admin_id INTEGER,
+            note TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY(admin_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS addresses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            recipient_name TEXT,
+            phone TEXT,
+            line1 TEXT NOT NULL,
+            line2 TEXT,
+            ward TEXT,
+            district TEXT NOT NULL,
+            province TEXT NOT NULL,
+            country TEXT DEFAULT 'VN',
+            is_default INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS qr_tags (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            token TEXT NOT NULL UNIQUE,
+            variant_id INTEGER NOT NULL,
+            character_id INTEGER NOT NULL,
+            batch_code TEXT,
+            serial_no TEXT,
+            status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'disabled', 'expired')),
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(variant_id) REFERENCES product_variants(id) ON DELETE CASCADE,
+            FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS qr_scans (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            qr_tag_id INTEGER NOT NULL,
+            user_id INTEGER,
+            scanned_at TEXT NOT NULL,
+            ip_hash TEXT,
+            user_agent TEXT,
+            referrer TEXT,
+            utm_source TEXT,
+            utm_campaign TEXT,
+            FOREIGN KEY(qr_tag_id) REFERENCES qr_tags(id) ON DELETE CASCADE,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE SET NULL
+        )
+        """
+    )
+    _ensure_column(conn, "users", "role", "TEXT DEFAULT 'customer'")
+    _ensure_column(conn, "users", "phone", "TEXT")
+    _ensure_column(conn, "users", "is_blocked", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "users", "customer_group", "TEXT")
+    _ensure_column(conn, "users", "notes", "TEXT")
+    _ensure_column(conn, "products", "seo_title", "TEXT")
+    _ensure_column(conn, "products", "seo_description", "TEXT")
+    _ensure_column(conn, "products", "long_description", "TEXT")
+    _ensure_column(conn, "products", "is_featured", "INTEGER DEFAULT 0")
+    _ensure_column(conn, "products", "collection", "TEXT")
+    _ensure_column(conn, "product_variants", "low_stock_threshold", "INTEGER DEFAULT 5")
+    _ensure_column(conn, "characters", "is_active", "INTEGER DEFAULT 1")
+    _ensure_column(conn, "orders", "shipping_provider", "TEXT")
+    _ensure_column(conn, "orders", "tracking_code", "TEXT")
+    _ensure_column(conn, "qr_tags", "batch_code", "TEXT")
+    _ensure_column(conn, "qr_tags", "serial_no", "TEXT")
+    _ensure_column(conn, "qr_tags", "status", "TEXT DEFAULT 'active'")
+    _ensure_column(conn, "qr_tags", "created_at", "TEXT")
+    _ensure_column(conn, "qr_scans", "ip_hash", "TEXT")
+    _ensure_column(conn, "qr_scans", "user_agent", "TEXT")
+    _ensure_column(conn, "qr_scans", "referrer", "TEXT")
+    _ensure_column(conn, "qr_scans", "utm_source", "TEXT")
+    _ensure_column(conn, "qr_scans", "utm_campaign", "TEXT")
+    conn.execute("UPDATE users SET role = 'customer' WHERE role IS NULL")
+    conn.execute("UPDATE characters SET is_active = 1 WHERE is_active IS NULL")
+    conn.execute("UPDATE qr_tags SET status = lower(status) WHERE status IS NOT NULL")
+    conn.execute("UPDATE qr_tags SET status = 'disabled' WHERE status = 'inactive'")
+    conn.execute(
+        "UPDATE qr_tags SET status = 'active' WHERE status IS NULL OR status = ''"
+    )
+    conn.execute(
+        """
+        UPDATE qr_tags
+        SET status = 'disabled'
+        WHERE status NOT IN ('active', 'disabled', 'expired')
+        """
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_qr_tags_token ON qr_tags(token)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_qr_scans_tag_time ON qr_scans(qr_tag_id, scanned_at)"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_qr_scans_tag_ip_time ON qr_scans(qr_tag_id, ip_hash, scanned_at)"
+    )
+
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if admin_email and admin_password:
+        row = conn.execute(
+            "SELECT id FROM users WHERE email = ?",
+            (admin_email.strip().lower(),),
+        ).fetchone()
+        now = datetime.utcnow().isoformat()
+        if row is None:
+            conn.execute(
+                """
+                INSERT INTO users (email, password_hash, full_name, is_verified, role, created_at, updated_at)
+                VALUES (?, ?, ?, 1, 'admin', ?, ?)
+                """,
+                (
+                    admin_email.strip().lower(),
+                    generate_password_hash(admin_password),
+                    "Administrator",
+                    now,
+                    now,
+                ),
+            )
+        else:
+            conn.execute(
+                "UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?",
+                (now, row["id"]),
+            )
+
+    conn.commit()
+    conn.close()
+
+
+def _get_setting(conn, key, default=None):
+    row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+    if row is None or row["value"] is None:
+        return default
+    return row["value"]
+
+
+def _set_setting(conn, key, value):
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+        (key, value),
+    )

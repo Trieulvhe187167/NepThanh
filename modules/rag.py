@@ -10,11 +10,16 @@ import re
 import hashlib
 from datetime import datetime
 
-import chromadb
-from chromadb.config import Settings
-
 from modules.config import DB_PATH
 from modules.db import _get_db
+
+# chromadb is imported lazily – not available on Vercel serverless
+try:
+    import chromadb
+    from chromadb.config import Settings
+    _CHROMADB_AVAILABLE = True
+except ImportError:
+    _CHROMADB_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # Paths & constants
@@ -50,6 +55,8 @@ def _get_embed_fn():
 def _get_collection():
     """Return the ChromaDB collection (create if needed)."""
     global _chroma_client, _collection
+    if not _CHROMADB_AVAILABLE:
+        raise RuntimeError("ChromaDB is not available in this environment.")
     if _collection is not None:
         return _collection
     _chroma_client = chromadb.PersistentClient(
@@ -255,6 +262,8 @@ def ingest(force=False):
     Called once at startup or on admin re-index.
     """
     global _INDEXED
+    if not _CHROMADB_AVAILABLE:
+        return  # silently skip on environments without ChromaDB
     if _INDEXED and not force:
         return
     collection = _get_collection()
@@ -322,6 +331,8 @@ def retrieve(query, top_k=5, type_filter=None):
     Retrieve top-k relevant chunks for a query.
     Returns list of dicts: {text, source, section, subsection, type, distance}.
     """
+    if not _CHROMADB_AVAILABLE:
+        return []  # no RAG available
     ingest()  # ensure indexed
     collection = _get_collection()
 

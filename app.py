@@ -21,9 +21,8 @@ from modules.routes_public import register_public_routes
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
 
-import os
-if os.environ.get("VERCEL"):
-    init_db()
+# Ensure a usable schema exists for both local runs and Vercel cold starts.
+init_db()
 
 
 @app.context_processor

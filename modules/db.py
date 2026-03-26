@@ -1,5 +1,6 @@
 ﻿import os
 import sqlite3
+from collections.abc import Mapping
 from datetime import datetime
 from werkzeug.security import generate_password_hash
 
@@ -33,7 +34,7 @@ class ManagedConnection:
         self._sync_enabled = sync_enabled
 
     def execute(self, sql, parameters=()):
-        return self._conn.execute(sql, parameters)
+        return ManagedCursor(self._conn.execute(sql, parameters))
 
     def commit(self):
         self._conn.commit()
@@ -50,6 +51,83 @@ class ManagedConnection:
         return getattr(self._conn, name)
 
 
+class ManagedCursor:
+    def __init__(self, cursor):
+        self._cursor = cursor
+
+    @property
+    def lastrowid(self):
+        return getattr(self._cursor, "lastrowid", None)
+
+    @property
+    def rowcount(self):
+        return getattr(self._cursor, "rowcount", -1)
+
+    @property
+    def description(self):
+        return getattr(self._cursor, "description", None)
+
+    def fetchone(self):
+        row = self._cursor.fetchone()
+        return _normalize_row(row, self.description)
+
+    def fetchall(self):
+        return [_normalize_row(row, self.description) for row in self._cursor.fetchall()]
+
+    def __iter__(self):
+        for row in self._cursor:
+            yield _normalize_row(row, self.description)
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+
+class ManagedRow(Mapping):
+    def __init__(self, data, values):
+        self._data = data
+        self._values = values
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return self._values[key]
+        return self._data[key]
+
+    def __iter__(self):
+        return iter(self._data)
+
+    def __len__(self):
+        return len(self._data)
+
+    def keys(self):
+        return self._data.keys()
+
+    def get(self, key, default=None):
+        return self._data.get(key, default)
+
+
+def _normalize_row(row, description):
+    if row is None:
+        return None
+    if isinstance(row, ManagedRow):
+        return row
+    if isinstance(row, sqlite3.Row):
+        data = {key: row[key] for key in row.keys()}
+        values = tuple(row[idx] for idx in range(len(row)))
+        return ManagedRow(data, values)
+    if isinstance(row, Mapping):
+        data = dict(row)
+        values = tuple(data.values())
+        return ManagedRow(data, values)
+    if description:
+        columns = [col[0] for col in description]
+        values = tuple(row)
+        data = {column: values[idx] for idx, column in enumerate(columns)}
+        return ManagedRow(data, values)
+    values = tuple(row) if isinstance(row, (list, tuple)) else (row,)
+    data = {str(idx): value for idx, value in enumerate(values)}
+    return ManagedRow(data, values)
+
+
 def _get_db():
     if USE_TURSO:
         conn = libsql.connect(
@@ -60,7 +138,7 @@ def _get_db():
         conn.sync()
     else:
         conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+        conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return ManagedConnection(conn, sync_enabled=USE_TURSO)
 

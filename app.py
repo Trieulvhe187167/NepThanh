@@ -1,4 +1,4 @@
-﻿"""
+"""
 Flask application for the Nếp Thanh – Dòng chảy thanh âm Việt project.
 """
 
@@ -20,6 +20,10 @@ from modules.routes_public import register_public_routes
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+
+import os
+if os.environ.get("VERCEL"):
+    init_db()
 
 
 @app.context_processor

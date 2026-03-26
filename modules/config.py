@@ -1,8 +1,16 @@
-﻿import os
+import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BASE_DIR, "data", "nepthanh.db")
-UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+
+if os.environ.get("VERCEL"):
+    DB_PATH = "/tmp/nepthanh.db"
+    UPLOAD_DIR = "/tmp/uploads"
+else:
+    DB_PATH = os.path.join(BASE_DIR, "data", "nepthanh.db")
+    UPLOAD_DIR = os.path.join(BASE_DIR, "static", "uploads")
+
+os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 SECRET_KEY = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-me")
 GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID")

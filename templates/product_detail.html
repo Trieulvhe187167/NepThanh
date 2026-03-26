@@ -23,13 +23,30 @@
 
         <form method="post" action="{{ url_for('cart_add') }}" class="product-add-form">
             <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}" />
+            <input type="hidden" name="selected_color" id="selected_color" value="black" />
+
+            <div class="product-section">
+                <span class="product-section-title">Chọn màu</span>
+                <div class="pd-color-picker" role="radiogroup" aria-label="Chọn màu áo">
+                    <button type="button" class="pd-color-option is-active" data-color="black" aria-pressed="true">
+                        <span class="pd-color-swatch pd-color-swatch-black" aria-hidden="true"></span>
+                        <span>Đen</span>
+                    </button>
+                    <button type="button" class="pd-color-option" data-color="white" aria-pressed="false">
+                        <span class="pd-color-swatch pd-color-swatch-white" aria-hidden="true"></span>
+                        <span>Trắng</span>
+                    </button>
+                </div>
+            </div>
 
             <div class="product-section">
                 <label for="variant_id" class="product-section-title">Chọn size</label>
                 <div class="pd-select-wrapper">
                     <select name="variant_id" id="variant_id" class="pd-select" required>
                         {% for variant in variants %}
-                        <option value="{{ variant.id }}" {% if variant.stock_qty <=0 %}disabled{% endif %}>
+                        <option value="{{ variant.id }}" data-color="{{ (variant.color or '')|lower }}"
+                            data-base-disabled="{% if variant.stock_qty <=0 %}true{% else %}false{% endif %}" {% if
+                            variant.stock_qty <=0 %}disabled{% endif %}>
                             {{ variant.size }} - {% if variant.stock_qty > 0 %}Còn {{ variant.stock_qty }} sản phẩm{%
                             else %}Hết hàng{% endif %}
                         </option>
@@ -232,6 +249,55 @@
         position: relative;
     }
 
+    .pd-color-picker {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+    }
+
+    .pd-color-option {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 120px;
+        padding: 10px 14px;
+        border: 1px solid #e5e5e5;
+        border-radius: 10px;
+        background: #fff;
+        color: #1a1a1a;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+    }
+
+    .pd-color-option:hover {
+        border-color: #d9b7b7;
+        transform: translateY(-1px);
+    }
+
+    .pd-color-option.is-active {
+        border-color: #e31837;
+        box-shadow: 0 0 0 3px rgba(227, 24, 55, 0.12);
+    }
+
+    .pd-color-swatch {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 1px solid #d8d8d8;
+        flex-shrink: 0;
+    }
+
+    .pd-color-swatch-black {
+        background: #111111;
+        border-color: #111111;
+    }
+
+    .pd-color-swatch-white {
+        background: #ffffff;
+    }
+
     .pd-select {
         width: 100%;
         padding: 12px 15px;
@@ -426,6 +492,9 @@
         const minusBtn = document.querySelector('.pd-qty-minus');
         const plusBtn = document.querySelector('.pd-qty-plus');
         const qtyInput = document.getElementById('cart_quantity');
+        const colorInput = document.getElementById('selected_color');
+        const colorButtons = document.querySelectorAll('.pd-color-option');
+        const variantSelect = document.getElementById('variant_id');
 
         if (minusBtn && plusBtn && qtyInput) {
             minusBtn.addEventListener('click', () => {
@@ -436,6 +505,70 @@
                 let val = parseInt(qtyInput.value) || 1;
                 qtyInput.value = val + 1;
             });
+        }
+
+        if (colorInput && colorButtons.length) {
+            const normalizeColor = (value) => {
+                const raw = (value || '').trim().toLowerCase();
+                if (raw === 'đen' || raw === 'den' || raw === 'black') return 'black';
+                if (raw === 'trắng' || raw === 'trang' || raw === 'white') return 'white';
+                return raw;
+            };
+
+            const setActiveColorButton = (selectedColor) => {
+                colorButtons.forEach((item) => {
+                    const isActive = item.dataset.color === selectedColor;
+                    item.classList.toggle('is-active', isActive);
+                    item.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+                });
+            };
+
+            const syncVariantOptions = () => {
+                if (!variantSelect) return;
+
+                const selectedColor = normalizeColor(colorInput.value);
+                let fallbackOption = null;
+                const optionColors = new Set();
+
+                Array.from(variantSelect.options).forEach((option) => {
+                    const optionColor = normalizeColor(option.dataset.color);
+                    const baseDisabled = option.dataset.baseDisabled === 'true';
+                    const matchesColor = !optionColor || optionColor === selectedColor;
+
+                    if (optionColor) {
+                        optionColors.add(optionColor);
+                    }
+
+                    option.hidden = !matchesColor;
+                    option.disabled = baseDisabled || !matchesColor;
+
+                    if (matchesColor && !baseDisabled && !fallbackOption) {
+                        fallbackOption = option;
+                    }
+                });
+
+                const currentOption = variantSelect.options[variantSelect.selectedIndex];
+                if ((!currentOption || currentOption.hidden || currentOption.disabled) && fallbackOption) {
+                    fallbackOption.selected = true;
+                }
+
+                if (!fallbackOption && optionColors.size > 0 && !optionColors.has(selectedColor)) {
+                    colorInput.value = Array.from(optionColors)[0];
+                    setActiveColorButton(colorInput.value);
+                    syncVariantOptions();
+                }
+            };
+
+            colorButtons.forEach((button) => {
+                button.addEventListener('click', () => {
+                    colorInput.value = button.dataset.color;
+                    setActiveColorButton(button.dataset.color);
+                    syncVariantOptions();
+                });
+            });
+
+            setActiveColorButton(colorInput.value);
+            syncVariantOptions();
         }
     });
 </script>

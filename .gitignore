@@ -9,3 +9,10 @@ data/chroma_store/
 .DS_Store
 *.db
 *.sqlite
+*.db-wal
+*.db-shm
+*.db-journal
+*.db-info
+*.sqlite-wal
+*.sqlite-shm
+*.sqlite-journal

@@ -92,29 +92,45 @@ def _character_intro_video_for_slug(slug):
     stem = slug.replace("-", "_")
     return _first_existing(
         [
-            f"images/characters/{stem}.mp4",
-            f"images/characters/{slug}.mp4",
             f"videos/characters/{stem}.mp4",
             f"videos/characters/{slug}.mp4",
+            f"images/characters/{stem}.mp4",
+            f"images/characters/{slug}.mp4",
         ]
     )
 
 
-def _character_asset_for_slug(slug):
+def _character_model_for_slug(slug):
     return _first_existing(
         [
-            f"images/characters/{slug.replace('-', '_')}.glb",
-            f"images/characters/{slug}.glb",
             f"models/characters/{slug.replace('-', '_')}.glb",
             f"models/characters/{slug}.glb",
-            f"images/characters/{slug.replace('-', '_')}.gltf",
-            f"images/characters/{slug}.gltf",
             f"models/characters/{slug.replace('-', '_')}.gltf",
             f"models/characters/{slug}.gltf",
+            f"images/characters/{slug.replace('-', '_')}.glb",
+            f"images/characters/{slug}.glb",
+            f"images/characters/{slug.replace('-', '_')}.gltf",
+            f"images/characters/{slug}.gltf",
+        ]
+    )
+
+
+def _character_image_for_slug(slug):
+    return _first_existing(
+        [
             f"images/characters/{slug.replace('-', '_')}.jpg",
             f"images/characters/{slug}.jpg",
+            f"images/characters/{slug.replace('-', '_')}.jpeg",
+            f"images/characters/{slug}.jpeg",
+            f"images/characters/{slug.replace('-', '_')}.png",
+            f"images/characters/{slug}.png",
+            f"images/characters/{slug.replace('-', '_')}.webp",
+            f"images/characters/{slug}.webp",
             f"image/characters/{slug}.jpg",
             f"images/{slug.replace('-', '_')}.jpg",
+            f"images/{slug.replace('-', '_')}.jpeg",
+            f"images/{slug.replace('-', '_')}.png",
+            f"images/{slug.replace('-', '_')}.webp",
         ]
     ) or f"images/{slug.replace('-', '_')}.jpg"
 
@@ -126,10 +142,23 @@ def _map_character(row):
     bio = " ".join(part for part in bio_parts if part)
     audio_source = row["audio_url"] or row["music_sample_url"]
     requested_asset = _resolve_character_asset_path(row["image_url"]) if row["image_url"] else None
-    asset_path = requested_asset if requested_asset and _static_path_exists(requested_asset) else _character_asset_for_slug(row["slug"])
-    asset_type = _character_asset_type(asset_path)
-    preview_image = asset_path if asset_type == "image" else (_character_preview_for_asset(asset_path, row["slug"]) or asset_path)
+    requested_asset_exists = requested_asset and _static_path_exists(requested_asset)
+    requested_asset_type = _character_asset_type(requested_asset) if requested_asset_exists else None
+    model_path = requested_asset if requested_asset_type == "model" else _character_model_for_slug(row["slug"])
+    slug_image = _character_image_for_slug(row["slug"])
+
+    if requested_asset_exists and requested_asset_type == "image":
+        preview_image = requested_asset
+    elif model_path:
+        preview_image = _character_preview_for_asset(model_path, row["slug"]) or slug_image
+    elif requested_asset_exists:
+        preview_image = requested_asset
+    else:
+        preview_image = slug_image
+
     intro_video = _character_intro_video_for_slug(row["slug"])
+    final_visual_path = model_path or preview_image
+    final_visual_type = "model" if model_path else "image"
 
     character = {
         "id": row["id"],
@@ -146,8 +175,11 @@ def _map_character(row):
         "audio_file": _normalize_static_path(audio_source) if audio_source else None,
         "audio_url": _normalize_static_path(audio_source) if audio_source else None,
         "image": preview_image,
-        "asset_path": asset_path,
-        "asset_type": asset_type,
+        "model_path": model_path,
+        "asset_path": final_visual_path,
+        "asset_type": final_visual_type,
+        "final_visual_path": final_visual_path,
+        "final_visual_type": final_visual_type,
         "intro_video": intro_video,
     }
     if row["seo_description"]:

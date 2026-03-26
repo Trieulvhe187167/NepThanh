@@ -2980,15 +2980,29 @@ main.character-main>.container {
     animation: viewerFloat 5.4s ease-in-out infinite;
 }
 
+.character-intro-poster,
 .character-figure-fallback {
     grid-area: 1 / 1;
     width: 100%;
     height: var(--character-media-height);
     display: grid;
     place-items: center;
-    transition: opacity 0.3s ease;
+    border-radius: 28px;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
 }
 
+.character-intro-poster {
+    z-index: 2;
+    padding: clamp(0.8rem, 2vw, 1.1rem);
+    background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.92), rgba(255, 248, 240, 0.76) 54%, rgba(240, 230, 200, 0.56) 100%);
+    border: 1px solid rgba(212, 168, 67, 0.38);
+    box-shadow:
+        0 24px 44px rgba(26, 26, 26, 0.12),
+        inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+.character-intro-poster.is-hidden,
 .character-figure-fallback.is-hidden,
 .character-intro-video.is-hidden,
 .character-intro-canvas.is-hidden {
@@ -2997,6 +3011,7 @@ main.character-main>.container {
     pointer-events: none;
 }
 
+.character-intro-poster.is-visible,
 .character-figure-fallback.is-visible,
 .character-intro-video,
 .character-intro-canvas {
@@ -3062,6 +3077,10 @@ main.character-main>.container {
         drop-shadow(0 0 26px rgba(212, 168, 67, 0.18));
     user-select: none;
     pointer-events: none;
+}
+
+.character-figure-3d .character-intro-poster img {
+    height: calc(var(--character-media-height) - clamp(1.6rem, 4vw, 2.2rem));
 }
 
 .character-visual-shell.is-active:not(.is-greeted) .character-figure-3d model-viewer {
@@ -3699,8 +3718,10 @@ main.character-main>.container {
         width: min(100%, 500px);
     }
 
+    .character-intro-poster,
     .character-intro-video,
-    .character-intro-canvas {
+    .character-intro-canvas,
+    .character-figure-fallback {
         width: 100%;
         height: var(--character-media-height);
         clip-path: inset(0 round 24px);

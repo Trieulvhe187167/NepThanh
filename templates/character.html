@@ -17,27 +17,31 @@
                 <div class="character-sparkles" aria-hidden="true"></div>
                 <div class="character-greeting-bubble" aria-hidden="true">Xin chào!</div>
                 <div class="character-figure-3d">
+                    <div class="character-intro-poster is-visible" data-character-poster>
+                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+                    </div>
                     {% if character.intro_video %}
-                    <video class="character-intro-video" data-character-intro-video muted playsinline preload="auto"
+                    <video class="character-intro-video is-hidden" data-character-intro-video muted playsinline preload="auto"
                         {% if character.image %}poster="{{ url_for('static', filename=character.image) }}"{% endif %}>
                         <source src="{{ url_for('static', filename=character.intro_video) }}" type="video/mp4" />
                     </video>
-                    <canvas class="character-intro-canvas" data-character-intro-canvas aria-hidden="true"></canvas>
+                    <canvas class="character-intro-canvas is-hidden" data-character-intro-canvas aria-hidden="true"></canvas>
                     {% endif %}
-                    <div class="character-figure-fallback{% if character.intro_video %} is-hidden{% endif %}"
-                        data-character-fallback>
-                        {% if character.asset_type == "model" %}
-                        <model-viewer src="{{ url_for('static', filename=character.asset_path) }}" alt="{{ character.name }}"
+                    {% if character.intro_video or character.model_path %}
+                    <div class="character-figure-fallback is-hidden" data-character-fallback>
+                        {% if character.final_visual_type == "model" %}
+                        <model-viewer src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}"
                             camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="1"
                             exposure="1.05" interaction-prompt="none" touch-action="pan-y">
                         </model-viewer>
                         {% else %}
-                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+                        <img src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}" />
                         {% endif %}
                     </div>
+                    {% endif %}
                 </div>
                 <div class="character-intro-start is-hidden" data-intro-start aria-hidden="true">
-                    <p class="character-intro-start-copy">Chạm để bắt đầu intro có tiếng</p>
+                    <p class="character-intro-start-copy">Chạm để bắt đầu hành trình nhân vật</p>
                     <button type="button" class="character-intro-start-button" data-intro-start-button>
                         Bắt đầu
                     </button>
@@ -183,7 +187,8 @@
         "story": character.story_text or character.description or character.bio or "Câu chuyện của nhân vật đang được cập nhật.",
         "role": character.role or "Người lưu giữ nét đẹp dân gian Việt Nam.",
         "audioUrl": character.audio_url or "",
-        "introVideoUrl": character.intro_video or ""
+        "introVideoUrl": character.intro_video or "",
+        "finalVisualType": character.final_visual_type
     } | tojson }}
 </script>
 
@@ -203,6 +208,7 @@
         var introCanvasContext = introCanvas && introCanvas.getContext ? introCanvas.getContext("2d", { willReadFrequently: true }) : null;
         var introStartGate = root.querySelector("[data-intro-start]");
         var introStartButton = root.querySelector("[data-intro-start-button]");
+        var posterFigure = root.querySelector("[data-character-poster]");
         var fallbackFigure = root.querySelector("[data-character-fallback]");
         var nameEl = root.querySelector('[data-type-target="name"]');
         var nicknameEl = root.querySelector('[data-type-target="nickname"]');
@@ -211,6 +217,7 @@
         var roleCard = root.querySelector('[data-reveal="role"]');
         var playerCard = root.querySelector('[data-reveal="player"]');
         var prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var hasInteractiveIntro = Boolean(introVideo || fallbackFigure);
         var introCanvasFrameId = 0;
         var introCanvasEnabled = false;
         var introStartPromise = null;
@@ -406,6 +413,22 @@
             return minutes + ":" + String(remain).padStart(2, "0");
         }
 
+        function showPosterFigure() {
+            if (!posterFigure) {
+                return;
+            }
+            posterFigure.classList.remove("is-hidden");
+            posterFigure.classList.add("is-visible");
+        }
+
+        function hidePosterFigure() {
+            if (!posterFigure) {
+                return;
+            }
+            posterFigure.classList.add("is-hidden");
+            posterFigure.classList.remove("is-visible");
+        }
+
         function hideIntroStartGate() {
             if (!introStartGate) {
                 return;
@@ -415,7 +438,7 @@
         }
 
         function waitForIntroStart() {
-            if (!introVideo || !payload.introVideoUrl || prefersReducedMotion || !introStartGate || !introStartButton) {
+            if (!hasInteractiveIntro || prefersReducedMotion || !introStartGate || !introStartButton) {
                 hideIntroStartGate();
                 return Promise.resolve(false);
             }
@@ -561,24 +584,38 @@
         function revealFallbackFigure() {
             stopIntroCanvasKeying();
             hideIntroStartGate();
-            if (fallbackFigure) {
-                fallbackFigure.classList.remove("is-hidden");
-                fallbackFigure.classList.add("is-visible");
-            }
             if (introVideo) {
+                introVideo.pause();
                 introVideo.classList.add("is-hidden");
             }
             if (introCanvas) {
                 introCanvas.classList.add("is-hidden");
             }
+            if (fallbackFigure) {
+                hidePosterFigure();
+                fallbackFigure.classList.remove("is-hidden");
+                fallbackFigure.classList.add("is-visible");
+                return;
+            }
+            showPosterFigure();
         }
 
-        function playIntroVideo(startMuted) {
-            if (!introVideo || !payload.introVideoUrl || prefersReducedMotion) {
+        function playIntroSequence(startMuted) {
+            if (!hasInteractiveIntro || prefersReducedMotion) {
+                if (fallbackFigure) {
+                    revealFallbackFigure();
+                } else {
+                    showPosterFigure();
+                }
+                return Promise.resolve();
+            }
+
+            if (!introVideo || !payload.introVideoUrl) {
                 revealFallbackFigure();
                 return Promise.resolve();
             }
 
+            hidePosterFigure();
             introVideo.currentTime = 0;
             introVideo.muted = startMuted !== false;
             introVideo.volume = 1;
@@ -1029,6 +1066,7 @@
         };
 
         createSparkles();
+        showPosterFigure();
 
         var preset = musicPresets[payload.slug] || defaultPreset(payload.name);
         var player = new PentatonicPlayer(root.querySelector("[data-player]"), preset, payload.audioUrl);
@@ -1036,7 +1074,7 @@
         async function runSequence() {
             viewer.classList.add("is-active");
             var startWithSound = await waitForIntroStart();
-            var introPlayback = playIntroVideo(!startWithSound);
+            var introPlayback = playIntroSequence(!startWithSound);
 
             if (!introVideo || !payload.introVideoUrl || prefersReducedMotion) {
                 enablePointerTracking();
@@ -1072,7 +1110,7 @@
         runSequence();
     })();
 </script>
-{% if character.asset_type == "model" %}
+{% if character.final_visual_type == "model" %}
 <script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
 {% endif %}
 {% endblock %}

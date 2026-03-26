@@ -326,6 +326,8 @@ def get_order_by_number_and_email(order_number, email):
 
 def _ensure_column(conn, table, column, column_sql):
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    if not rows:
+        return
     if any(row["name"] == column for row in rows):
         return
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_sql}")

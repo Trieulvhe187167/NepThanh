@@ -15,13 +15,109 @@ def _get_db():
 
 def _ensure_column(conn, table, column, column_sql):
     rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    if not rows:
+        return
     if any(row["name"] == column for row in rows):
         return
     conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {column_sql}")
 
 
+def _create_base_tables(conn):
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT,
+            full_name TEXT,
+            is_verified INTEGER NOT NULL DEFAULT 0,
+            role TEXT DEFAULT 'customer',
+            phone TEXT,
+            is_blocked INTEGER DEFAULT 0,
+            customer_group TEXT,
+            notes TEXT,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS characters (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            nickname TEXT,
+            origin TEXT,
+            personality TEXT,
+            symbol TEXT,
+            role TEXT,
+            story_text TEXT,
+            audio_url TEXT,
+            music_sample_url TEXT,
+            seo_title TEXT,
+            seo_description TEXT,
+            image_url TEXT,
+            is_active INTEGER DEFAULT 1,
+            created_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS products (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            slug TEXT UNIQUE NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT,
+            long_description TEXT,
+            character_id INTEGER,
+            collection TEXT,
+            base_price INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL DEFAULT 'draft',
+            seo_title TEXT,
+            seo_description TEXT,
+            is_featured INTEGER DEFAULT 0,
+            created_at TEXT NOT NULL,
+            updated_at TEXT,
+            FOREIGN KEY(character_id) REFERENCES characters(id) ON DELETE SET NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_variants (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            sku TEXT UNIQUE,
+            size TEXT,
+            color TEXT,
+            price INTEGER,
+            stock_qty INTEGER NOT NULL DEFAULT 0,
+            weight_grams INTEGER NOT NULL DEFAULT 250,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            low_stock_threshold INTEGER DEFAULT 5,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS product_images (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id INTEGER NOT NULL,
+            url TEXT NOT NULL,
+            alt_text TEXT,
+            sort_order INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+        )
+        """
+    )
+
+
 def init_db():
     conn = _get_db()
+    _create_base_tables(conn)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS orders (

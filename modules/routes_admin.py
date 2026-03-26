@@ -1,7 +1,6 @@
 import io
 import json
 import os
-import sqlite3
 from datetime import date, datetime, timedelta
 
 from flask import abort, redirect, render_template, request, send_file, session, url_for
@@ -24,7 +23,7 @@ from modules.config import (
     ROLE_PERMISSIONS,
 )
 from modules.checkout import send_order_status_update
-from modules.db import _get_db, _get_setting, _set_setting
+from modules.db import INTEGRITY_ERRORS, _get_db, _get_setting, _set_setting
 from modules.qr_service import (
     create_qr_batch,
     disable_qr_token,
@@ -494,7 +493,7 @@ def register_admin_routes(app):
                 product_id,
                 {"sku": sku},
             )
-        except sqlite3.IntegrityError:
+        except INTEGRITY_ERRORS:
             conn.close()
             return redirect(url_for("admin_product_edit", product_id=product_id, error="SKU đã tồn tại."))
         conn.close()
@@ -1550,7 +1549,7 @@ def register_admin_routes(app):
                         ),
                     )
                     conn.commit()
-                except sqlite3.IntegrityError:
+                except INTEGRITY_ERRORS:
                     error = "Mã giảm giá đã tồn tại."
         coupons = conn.execute("SELECT * FROM coupons ORDER BY created_at DESC").fetchall()
         conn.close()

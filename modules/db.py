@@ -3,14 +3,66 @@ import sqlite3
 from datetime import datetime
 from werkzeug.security import generate_password_hash
 
-from modules.config import DB_PATH
+try:
+    import libsql
+except ImportError:
+    libsql = None
+
+from modules.config import DB_PATH, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL, USE_TURSO
+
+
+if USE_TURSO and libsql is None:
+    raise RuntimeError(
+        "Turso is configured but the 'libsql' package is not installed."
+    )
+
+
+INTEGRITY_ERRORS = tuple(
+    error_type
+    for error_type in (
+        sqlite3.IntegrityError,
+        getattr(libsql, "IntegrityError", None),
+    )
+    if error_type is not None
+)
+
+
+class ManagedConnection:
+    def __init__(self, conn, sync_enabled=False):
+        self._conn = conn
+        self._sync_enabled = sync_enabled
+
+    def execute(self, sql, parameters=()):
+        return self._conn.execute(sql, parameters)
+
+    def commit(self):
+        self._conn.commit()
+        if self._sync_enabled:
+            self._conn.sync()
+
+    def rollback(self):
+        return self._conn.rollback()
+
+    def close(self):
+        return self._conn.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
 
 
 def _get_db():
-    conn = sqlite3.connect(DB_PATH)
+    if USE_TURSO:
+        conn = libsql.connect(
+            DB_PATH,
+            sync_url=TURSO_DATABASE_URL,
+            auth_token=TURSO_AUTH_TOKEN,
+        )
+        conn.sync()
+    else:
+        conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    return ManagedConnection(conn, sync_enabled=USE_TURSO)
 
 
 def _ensure_column(conn, table, column, column_sql):

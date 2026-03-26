@@ -1,10 +1,9 @@
 import io
 import secrets
-import sqlite3
 import zipfile
 from datetime import datetime, timedelta
 
-from modules.db import _get_db
+from modules.db import INTEGRITY_ERRORS, _get_db
 from modules.utils import _generate_qr_png
 
 
@@ -99,7 +98,7 @@ def create_qr_batch(variant_id, character_id, batch_code, quantity):
                     )
                     token = candidate
                     break
-                except sqlite3.IntegrityError:
+                except INTEGRITY_ERRORS:
                     continue
             if not token:
                 raise RuntimeError("Unable to generate unique QR token.")

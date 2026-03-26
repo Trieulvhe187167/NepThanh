@@ -40,7 +40,7 @@ def _create_bot_order(draft_data, session_id):
     ship_fee = draft_data.get("ship_fee", 0)
     total = price + ship_fee
 
-    conn.execute(
+    order_cursor = conn.execute(
         """
         INSERT INTO orders (
             order_number, status, subtotal, shipping_fee, discount_amount,
@@ -61,7 +61,7 @@ def _create_bot_order(draft_data, session_id):
             now,
         ),
     )
-    order_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    order_id = order_cursor.lastrowid
 
     # Insert order item
     product_name = draft_data.get("product_name", "Sản phẩm Nếp Thanh")

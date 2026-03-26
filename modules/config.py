@@ -1,6 +1,9 @@
 import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TURSO_DATABASE_URL = (os.environ.get("TURSO_DATABASE_URL") or "").strip() or None
+TURSO_AUTH_TOKEN = (os.environ.get("TURSO_AUTH_TOKEN") or "").strip() or None
+USE_TURSO = bool(TURSO_DATABASE_URL and TURSO_AUTH_TOKEN)
 
 if os.environ.get("VERCEL"):
     DB_PATH = "/tmp/nepthanh.db"

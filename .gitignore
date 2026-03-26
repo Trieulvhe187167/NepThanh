@@ -4,3 +4,8 @@ __pycache__/
 .qodo/
 data/nepthanh.db
 data/chroma_store/
+*.pyc
+*.pyo
+.DS_Store
+*.db
+*.sqlite

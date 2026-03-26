@@ -1,0 +1,10 @@
+flask==3.0.0
+flask-login
+python-dotenv
+requests
+Pillow
+qrcode
+Authlib
+itsdangerous
+Werkzeug
+Jinja2

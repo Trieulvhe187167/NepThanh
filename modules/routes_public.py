@@ -18,7 +18,6 @@ from modules.cart import (
     add_item_to_cart,
     apply_coupon_to_cart,
     clear_cart_coupon,
-    ensure_cart_tables,
     get_cart_snapshot,
     merge_guest_cart_into_user,
     remove_cart_item,
@@ -26,7 +25,6 @@ from modules.cart import (
     update_cart_item,
 )
 from modules.checkout import (
-    ensure_checkout_tables,
     get_checkout_prefill,
     get_order_details,
     handle_vnpay_callback,
@@ -35,7 +33,6 @@ from modules.checkout import (
 from modules.customer_account import (
     add_user_address,
     delete_user_address,
-    ensure_account_tables,
     get_order_by_number_and_email,
     get_user_order_detail,
     get_user_profile,
@@ -57,10 +54,6 @@ from modules.utils import (
 
 
 def register_public_routes(app):
-    ensure_cart_tables()
-    ensure_checkout_tables()
-    ensure_account_tables()
-
     @app.route("/")
     def home():
         products = load_products()

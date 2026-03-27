@@ -4,7 +4,7 @@ Flask application for the Nếp Thanh – Dòng chảy thanh âm Việt projec
 
 from datetime import datetime
 
-from flask import Flask, render_template
+from flask import Flask, render_template, request
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -20,6 +20,7 @@ from modules.routes_public import register_public_routes
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
 # Ensure a usable schema exists for both local runs and Vercel cold starts.
 init_db()
@@ -41,6 +42,17 @@ def inject_globals():
 register_public_routes(app)
 register_admin_routes(app)
 register_chatbot_routes(app)
+
+
+@app.after_request
+def apply_performance_headers(response):
+    path = request.path.lower()
+    if path.startswith("/static/"):
+        if path.endswith((".glb", ".gltf", ".mp4", ".webm", ".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".ico")):
+            response.headers["Cache-Control"] = "public, max-age=604800, stale-while-revalidate=86400"
+        elif path.endswith((".css", ".js")):
+            response.headers["Cache-Control"] = "public, max-age=86400, stale-while-revalidate=86400"
+    return response
 
 
 @app.errorhandler(404)

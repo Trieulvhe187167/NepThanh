@@ -22,7 +22,6 @@ chatbot_bp = Blueprint("chatbot", __name__)
 
 
 def register_chatbot_routes(app):
-    ensure_chatbot_tables()
     app.register_blueprint(chatbot_bp)
 
 
@@ -155,6 +154,7 @@ def api_chat():
 
 @chatbot_bp.route("/api/chat/reset", methods=["POST"])
 def api_chat_reset():
+    ensure_chatbot_tables()
     data = request.get_json(force=True, silent=True) or {}
     session_id = data.get("session_id") or session.get("chat_session_id")
     if session_id:

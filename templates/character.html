@@ -18,24 +18,27 @@
                 <div class="character-greeting-bubble" aria-hidden="true">Xin chào!</div>
                 <div class="character-figure-3d">
                     <div class="character-intro-poster is-visible" data-character-poster>
-                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}"
+                            fetchpriority="high" decoding="async" />
                     </div>
                     {% if character.intro_video %}
-                    <video class="character-intro-video is-hidden" data-character-intro-video muted playsinline preload="auto"
+                    <video class="character-intro-video is-hidden" data-character-intro-video
+                        data-intro-src="{{ url_for('static', filename=character.intro_video) }}" muted playsinline preload="none"
                         {% if character.image %}poster="{{ url_for('static', filename=character.image) }}"{% endif %}>
-                        <source src="{{ url_for('static', filename=character.intro_video) }}" type="video/mp4" />
                     </video>
                     <canvas class="character-intro-canvas is-hidden" data-character-intro-canvas aria-hidden="true"></canvas>
                     {% endif %}
                     {% if character.intro_video or character.model_path %}
                     <div class="character-figure-fallback is-hidden" data-character-fallback>
                         {% if character.final_visual_type == "model" %}
-                        <model-viewer src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}"
+                        <model-viewer data-model-viewer data-model-src="{{ url_for('static', filename=character.final_visual_path) }}"
+                            alt="{{ character.name }}"
                             camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="1"
                             exposure="1.05" interaction-prompt="none" touch-action="pan-y">
                         </model-viewer>
-                        {% else %}
-                        <img src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}" />
+                    {% else %}
+                        <img src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}"
+                            loading="lazy" decoding="async" />
                         {% endif %}
                     </div>
                     {% endif %}
@@ -169,7 +172,8 @@
             {% for item in characters if item.slug != character.slug %}
             <a href="{{ url_for('character_page', slug=item.slug) }}" class="character-avatar-link">
                 <span class="character-avatar-frame">
-                    <img src="{{ url_for('static', filename=item.image) }}" alt="{{ item.name }}" />
+                    <img src="{{ url_for('static', filename=item.image) }}" alt="{{ item.name }}" loading="lazy"
+                        decoding="async" />
                 </span>
                 <span class="character-avatar-name">{{ item.name }}</span>
                 <span class="character-avatar-nickname">{{ item.nickname or "Khám phá câu chuyện" }}</span>
@@ -210,6 +214,7 @@
         var introStartButton = root.querySelector("[data-intro-start-button]");
         var posterFigure = root.querySelector("[data-character-poster]");
         var fallbackFigure = root.querySelector("[data-character-fallback]");
+        var modelViewerElement = root.querySelector("[data-model-viewer]");
         var nameEl = root.querySelector('[data-type-target="name"]');
         var nicknameEl = root.querySelector('[data-type-target="nickname"]');
         var storyEl = root.querySelector('[data-type-target="story"]');
@@ -222,6 +227,7 @@
         var introCanvasEnabled = false;
         var introStartPromise = null;
         var introStartResolved = false;
+        var modelViewerScriptPromise = null;
 
         var musicPresets = {
             "chang-khen": {
@@ -437,6 +443,70 @@
             introStartGate.setAttribute("aria-hidden", "true");
         }
 
+        function ensureIntroVideoLoaded() {
+            if (!introVideo) {
+                return Promise.resolve(null);
+            }
+            if (introVideo.readyState >= 1) {
+                return Promise.resolve(introVideo);
+            }
+            var introSrc = introVideo.getAttribute("data-intro-src");
+            if (!introSrc) {
+                return Promise.resolve(introVideo);
+            }
+            return new Promise(function (resolve, reject) {
+                function onReady() {
+                    introVideo.removeEventListener("error", onError);
+                    resolve(introVideo);
+                }
+
+                function onError() {
+                    introVideo.removeEventListener("loadedmetadata", onReady);
+                    reject(new Error("intro_video_load_failed"));
+                }
+
+                introVideo.addEventListener("loadedmetadata", onReady, { once: true });
+                introVideo.addEventListener("error", onError, { once: true });
+                if (introVideo.getAttribute("src") !== introSrc) {
+                    introVideo.setAttribute("src", introSrc);
+                    introVideo.load();
+                } else if (introVideo.readyState >= 1) {
+                    onReady();
+                }
+            });
+        }
+
+        function ensureModelViewerLoaded() {
+            if (!modelViewerElement) {
+                return Promise.resolve();
+            }
+            var modelSrc = modelViewerElement.getAttribute("data-model-src");
+            if (!modelSrc) {
+                return Promise.resolve();
+            }
+            if (window.customElements && window.customElements.get("model-viewer")) {
+                if (!modelViewerElement.getAttribute("src")) {
+                    modelViewerElement.setAttribute("src", modelSrc);
+                }
+                return Promise.resolve();
+            }
+            if (!modelViewerScriptPromise) {
+                modelViewerScriptPromise = new Promise(function (resolve, reject) {
+                    var script = document.createElement("script");
+                    script.type = "module";
+                    script.src = "https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js";
+                    script.onload = resolve;
+                    script.onerror = reject;
+                    document.head.appendChild(script);
+                });
+            }
+            return modelViewerScriptPromise.then(function () {
+                if (!modelViewerElement.getAttribute("src")) {
+                    modelViewerElement.setAttribute("src", modelSrc);
+                }
+            });
+        }
+
         function waitForIntroStart() {
             if (!hasInteractiveIntro || prefersReducedMotion || !introStartGate || !introStartButton) {
                 hideIntroStartGate();
@@ -592,6 +662,9 @@
                 introCanvas.classList.add("is-hidden");
             }
             if (fallbackFigure) {
+                ensureModelViewerLoaded().catch(function () {
+                    return null;
+                });
                 hidePosterFigure();
                 fallbackFigure.classList.remove("is-hidden");
                 fallbackFigure.classList.add("is-visible");
@@ -615,53 +688,59 @@
                 return Promise.resolve();
             }
 
-            hidePosterFigure();
-            introVideo.currentTime = 0;
-            introVideo.muted = startMuted !== false;
-            introVideo.volume = 1;
-            introVideo.classList.remove("is-hidden");
-            if (introCanvas) {
-                introCanvas.classList.remove("is-hidden");
-            }
-
-            return new Promise(function (resolve) {
-                var settled = false;
-
-                function finish() {
-                    if (settled) {
-                        return;
+            return ensureIntroVideoLoaded()
+                .then(function () {
+                    hidePosterFigure();
+                    introVideo.currentTime = 0;
+                    introVideo.muted = startMuted !== false;
+                    introVideo.volume = 1;
+                    introVideo.classList.remove("is-hidden");
+                    if (introCanvas) {
+                        introCanvas.classList.remove("is-hidden");
                     }
-                    settled = true;
-                    introVideo.removeEventListener("ended", onEnded);
-                    introVideo.removeEventListener("error", onError);
-                    revealFallbackFigure();
-                    resolve();
-                }
 
-                function onEnded() {
-                    finish();
-                }
+                    return new Promise(function (resolve) {
+                        var settled = false;
 
-                function onError() {
-                    finish();
-                }
+                        function finish() {
+                            if (settled) {
+                                return;
+                            }
+                            settled = true;
+                            introVideo.removeEventListener("ended", onEnded);
+                            introVideo.removeEventListener("error", onError);
+                            revealFallbackFigure();
+                            resolve();
+                        }
 
-                introVideo.addEventListener("ended", onEnded, { once: true });
-                introVideo.addEventListener("error", onError, { once: true });
+                        function onEnded() {
+                            finish();
+                        }
 
-                if (introVideo.readyState >= 1) {
-                    startIntroCanvasKeying();
-                } else {
-                    introVideo.addEventListener("loadedmetadata", startIntroCanvasKeying, { once: true });
-                }
+                        function onError() {
+                            finish();
+                        }
 
-                var playPromise = introVideo.play();
-                if (playPromise && typeof playPromise.then === "function") {
-                    playPromise.catch(function () {
-                        finish();
+                        introVideo.addEventListener("ended", onEnded, { once: true });
+                        introVideo.addEventListener("error", onError, { once: true });
+
+                        if (introVideo.readyState >= 1) {
+                            startIntroCanvasKeying();
+                        } else {
+                            introVideo.addEventListener("loadedmetadata", startIntroCanvasKeying, { once: true });
+                        }
+
+                        var playPromise = introVideo.play();
+                        if (playPromise && typeof playPromise.then === "function") {
+                            playPromise.catch(function () {
+                                finish();
+                            });
+                        }
                     });
-                }
-            });
+                })
+                .catch(function () {
+                    revealFallbackFigure();
+                });
         }
 
         function PentatonicPlayer(container, preset, sourceUrl) {
@@ -1110,8 +1189,5 @@
         runSequence();
     })();
 </script>
-{% if character.final_visual_type == "model" %}
-<script type="module" src="https://unpkg.com/@google/model-viewer/dist/model-viewer.min.js"></script>
-{% endif %}
 {% endblock %}
 

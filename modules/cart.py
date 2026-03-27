@@ -62,9 +62,9 @@ def get_shipping_options():
 
 
 def get_cart_item_count(user):
-    ensure_cart_tables()
     user_id = user["id"] if user else None
     if user_id:
+        ensure_cart_tables()
         conn = _get_db()
         row = conn.execute(
             "SELECT COALESCE(SUM(qty), 0) AS total_qty FROM cart_items WHERE user_id = ?",
@@ -72,6 +72,8 @@ def get_cart_item_count(user):
         ).fetchone()
         conn.close()
         return row["total_qty"] if row else 0
+    if SESSION_CART_KEY not in session:
+        return 0
     guest_items = _get_guest_item_map()
     return sum(guest_items.values())
 

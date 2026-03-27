@@ -7,7 +7,8 @@
 
 <article class="product-detail-page">
     <div class="product-detail-gallery">
-        <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" />
+        <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" fetchpriority="high"
+            decoding="async" />
     </div>
 
     <div class="product-detail-content">
@@ -84,8 +85,9 @@
 
         <div class="pd-character-card">
             <div class="pd-character-avatar">
-                <img src="{{ url_for('static', filename='images/characters/' ~ character.slug ~ '.jpg') }}"
-                    alt="{{ character.name }}"
+                <img src="{{ url_for('static', filename=character.image) if character and character.image else url_for('static', filename='images/logo/logo.png') }}"
+                    alt="{{ character.name if character else product.name }}"
+                    loading="lazy" decoding="async"
                     onerror='this.src="{{ url_for("static", filename="images/logo/logo.png") }}"' />
             </div>
             <div class="pd-character-info">

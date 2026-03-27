@@ -2,7 +2,8 @@
 <article class="shop-card">
     <div class="shop-card-image">
         <a href="{{ url_for('product_detail', slug=product.slug) }}">
-            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" loading="lazy" />
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" loading="lazy"
+                decoding="async" />
         </a>
     </div>
     <div class="shop-card-body">

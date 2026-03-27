@@ -26,7 +26,7 @@
         <div class="container header-container">
             <a href="{{ url_for('home') }}" class="logo-link">
                 <img src="{{ url_for('static', filename='images/logo/logo3.png') }}" alt="Nếp Thanh Logo"
-                    class="header-logo-img" />
+                    class="header-logo-img" decoding="async" />
             </a>
 
             <nav id="mainNav">
@@ -114,7 +114,7 @@
                 <div class="footer-brand">
                     <a href="{{ url_for('home') }}" class="footer-logo" aria-label="{{ site_name }}"><img
                             src="{{ url_for('static', filename='images/logo/logo3.png') }}" alt="{{ site_name }}"
-                            class="footer-logo-img" /></a>
+                            class="footer-logo-img" loading="lazy" decoding="async" /></a>
                     <p>Nền tảng thời trang kể chuyện nghệ thuật truyền thống Việt Nam. Mỗi chiếc áo là một hành trình
                         khám phá văn hoá qua QR và âm thanh.</p>
                 </div>
@@ -187,7 +187,7 @@
                     </div>
                     <div class="auth-branding-side">
                         <img src="{{ url_for('static', filename='images/logo/logo.jpg') }}" alt="Nếp Thanh Logo"
-                            class="auth-logo">
+                            class="auth-logo" loading="lazy" decoding="async">
                         <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
                     </div>
                 </div>
@@ -234,7 +234,7 @@
                     </div>
                     <div class="auth-branding-side">
                         <img src="{{ url_for('static', filename='images/logo/logo.jpg') }}" alt="Nếp Thanh Logo"
-                            class="auth-logo">
+                            class="auth-logo" loading="lazy" decoding="async">
                         <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
                     </div>
                 </div>

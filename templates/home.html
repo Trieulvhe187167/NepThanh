@@ -21,7 +21,8 @@
     <div class="grid">
         {% for character in featured_characters %}
         <article class="card character-card">
-            <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" />
+            <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}" loading="lazy"
+                decoding="async" />
             <h3>{{ character.name }}</h3>
             <p>{{ character.nickname }}</p>
             <a href="{{ url_for('character_page', slug=character.slug) }}" class="link">Tìm hiểu →</a>
@@ -39,7 +40,8 @@
     <div class="grid">
         {% for product in featured_products %}
         <article class="card product-card">
-            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" />
+            <img src="{{ url_for('static', filename=product.image) }}" alt="{{ product.name }}" loading="lazy"
+                decoding="async" />
             <h3>{{ product.name }}</h3>
             <p class="price">{{ "{:,}".format(product.price) }} ₫</p>
             <a href="{{ url_for('product_detail', slug=product.slug) }}" class="btn-secondary">Xem chi tiết</a>

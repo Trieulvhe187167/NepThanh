@@ -1,5 +1,6 @@
 ﻿import os
 import sqlite3
+import time
 from collections.abc import Mapping
 from datetime import datetime
 from werkzeug.security import generate_password_hash
@@ -27,6 +28,13 @@ INTEGRITY_ERRORS = tuple(
     if error_type is not None
 )
 
+_TURSO_SYNC_INTERVAL_SECONDS = max(
+    0,
+    int((os.environ.get("TURSO_SYNC_INTERVAL_SECONDS") or "15").strip() or "15"),
+)
+_LAST_TURSO_SYNC_AT = 0.0
+_SCHEMA_BOOTSTRAP_VERSION = "2026-03-27-1"
+
 
 class ManagedConnection:
     def __init__(self, conn, sync_enabled=False):
@@ -39,7 +47,7 @@ class ManagedConnection:
     def commit(self):
         self._conn.commit()
         if self._sync_enabled:
-            self._conn.sync()
+            _maybe_sync_turso(self._conn, force=True)
 
     def rollback(self):
         return self._conn.rollback()
@@ -135,12 +143,25 @@ def _get_db():
             sync_url=TURSO_DATABASE_URL,
             auth_token=TURSO_AUTH_TOKEN,
         )
-        conn.sync()
+        _maybe_sync_turso(conn)
     else:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return ManagedConnection(conn, sync_enabled=USE_TURSO)
+
+
+def _maybe_sync_turso(conn, force=False):
+    global _LAST_TURSO_SYNC_AT
+    if not USE_TURSO:
+        return False
+    now = time.monotonic()
+    if not force and _LAST_TURSO_SYNC_AT:
+        if now - _LAST_TURSO_SYNC_AT < _TURSO_SYNC_INTERVAL_SECONDS:
+            return False
+    conn.sync()
+    _LAST_TURSO_SYNC_AT = now
+    return True
 
 
 def _ensure_column(conn, table, column, column_sql):
@@ -247,6 +268,20 @@ def _create_base_tables(conn):
 
 def init_db():
     conn = _get_db()
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        )
+        """
+    )
+    if _get_setting(conn, "_schema_bootstrap_version") == _SCHEMA_BOOTSTRAP_VERSION:
+        if _ensure_admin_user(conn):
+            conn.commit()
+        conn.close()
+        return
+
     _create_base_tables(conn)
     conn.execute(
         """
@@ -627,36 +662,47 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_qr_scans_tag_ip_time ON qr_scans(qr_tag_id, ip_hash, scanned_at)"
     )
 
-    admin_email = os.environ.get("ADMIN_EMAIL")
-    admin_password = os.environ.get("ADMIN_PASSWORD")
-    if admin_email and admin_password:
-        row = conn.execute(
-            "SELECT id FROM users WHERE email = ?",
-            (admin_email.strip().lower(),),
-        ).fetchone()
-        now = datetime.utcnow().isoformat()
-        if row is None:
-            conn.execute(
-                """
-                INSERT INTO users (email, password_hash, full_name, is_verified, role, created_at, updated_at)
-                VALUES (?, ?, ?, 1, 'admin', ?, ?)
-                """,
-                (
-                    admin_email.strip().lower(),
-                    generate_password_hash(admin_password),
-                    "Administrator",
-                    now,
-                    now,
-                ),
-            )
-        else:
-            conn.execute(
-                "UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?",
-                (now, row["id"]),
-            )
-
+    _set_setting(conn, "_schema_bootstrap_version", _SCHEMA_BOOTSTRAP_VERSION)
+    _ensure_admin_user(conn)
     conn.commit()
     conn.close()
+
+
+def _ensure_admin_user(conn):
+    admin_email = os.environ.get("ADMIN_EMAIL")
+    admin_password = os.environ.get("ADMIN_PASSWORD")
+    if not admin_email or not admin_password:
+        return False
+
+    normalized_email = admin_email.strip().lower()
+    row = conn.execute(
+        "SELECT id, role FROM users WHERE email = ?",
+        (normalized_email,),
+    ).fetchone()
+    now = datetime.utcnow().isoformat()
+    if row is None:
+        conn.execute(
+            """
+            INSERT INTO users (email, password_hash, full_name, is_verified, role, created_at, updated_at)
+            VALUES (?, ?, ?, 1, 'admin', ?, ?)
+            """,
+            (
+                normalized_email,
+                generate_password_hash(admin_password),
+                "Administrator",
+                now,
+                now,
+            ),
+        )
+        return True
+
+    if (row["role"] or "").strip().lower() != "admin":
+        conn.execute(
+            "UPDATE users SET role = 'admin', updated_at = ? WHERE id = ?",
+            (now, row["id"]),
+        )
+        return True
+    return False
 
 
 def _get_setting(conn, key, default=None):

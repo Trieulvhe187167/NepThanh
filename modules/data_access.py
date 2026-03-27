@@ -1,5 +1,6 @@
 import glob
 import os
+import time
 
 from modules.config import BASE_DIR
 from modules.db import _get_db
@@ -7,6 +8,11 @@ from modules.utils import _normalize_static_path, _static_path_exists
 
 
 STATIC_DIR = os.path.join(BASE_DIR, "static")
+_CONTENT_CACHE_TTL_SECONDS = max(
+    0,
+    int((os.environ.get("CONTENT_CACHE_TTL_SECONDS") or "30").strip() or "30"),
+)
+_CONTENT_CACHE = {}
 
 
 def _character_asset_type(path):
@@ -23,12 +29,44 @@ def _first_existing(candidates):
     return None
 
 
+def _smallest_existing(candidates):
+    matches = []
+    for candidate in candidates:
+        if not candidate or not _static_path_exists(candidate):
+            continue
+        absolute = os.path.join(STATIC_DIR, *candidate.split("/"))
+        try:
+            size = os.path.getsize(absolute)
+        except OSError:
+            size = float("inf")
+        matches.append((size, candidate))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (item[0], item[1]))
+    return matches[0][1]
+
+
 def _glob_relative(patterns):
     for pattern in patterns:
         matches = sorted(glob.glob(os.path.join(STATIC_DIR, *pattern.split("/"))))
         if matches:
             return os.path.relpath(matches[0], STATIC_DIR).replace("\\", "/")
     return None
+
+
+def _glob_smallest_relative(patterns):
+    matches = []
+    for pattern in patterns:
+        for match in glob.glob(os.path.join(STATIC_DIR, *pattern.split("/"))):
+            try:
+                size = os.path.getsize(match)
+            except OSError:
+                size = float("inf")
+            matches.append((size, match))
+    if not matches:
+        return None
+    matches.sort(key=lambda item: (item[0], item[1]))
+    return os.path.relpath(matches[0][1], STATIC_DIR).replace("\\", "/")
 
 
 def _resolve_character_asset_path(candidate):
@@ -52,30 +90,30 @@ def _resolve_character_asset_path(candidate):
 
 def _character_preview_for_stem(stem):
     base = stem.replace("-", "_")
-    exact = _first_existing(
+    exact = _smallest_existing(
         [
-            f"images/characters/{base}.jpg",
-            f"images/characters/{base}.jpeg",
-            f"images/characters/{base}.png",
-            f"images/characters/{base}.webp",
             f"images/{base}.jpg",
             f"images/{base}.jpeg",
             f"images/{base}.png",
             f"images/{base}.webp",
+            f"images/characters/{base}.jpg",
+            f"images/characters/{base}.jpeg",
+            f"images/characters/{base}.png",
+            f"images/characters/{base}.webp",
         ]
     )
     if exact:
         return exact
-    return _glob_relative(
+    return _glob_smallest_relative(
         [
-            f"images/characters/{base}*.jpg",
-            f"images/characters/{base}*.jpeg",
-            f"images/characters/{base}*.png",
-            f"images/characters/{base}*.webp",
             f"images/{base}*.jpg",
             f"images/{base}*.jpeg",
             f"images/{base}*.png",
             f"images/{base}*.webp",
+            f"images/characters/{base}*.jpg",
+            f"images/characters/{base}*.jpeg",
+            f"images/characters/{base}*.png",
+            f"images/characters/{base}*.webp",
         ]
     )
 
@@ -116,8 +154,12 @@ def _character_model_for_slug(slug):
 
 
 def _character_image_for_slug(slug):
-    return _first_existing(
+    return _smallest_existing(
         [
+            f"images/{slug.replace('-', '_')}.jpg",
+            f"images/{slug.replace('-', '_')}.jpeg",
+            f"images/{slug.replace('-', '_')}.png",
+            f"images/{slug.replace('-', '_')}.webp",
             f"images/characters/{slug.replace('-', '_')}.jpg",
             f"images/characters/{slug}.jpg",
             f"images/characters/{slug.replace('-', '_')}.jpeg",
@@ -127,10 +169,6 @@ def _character_image_for_slug(slug):
             f"images/characters/{slug.replace('-', '_')}.webp",
             f"images/characters/{slug}.webp",
             f"image/characters/{slug}.jpg",
-            f"images/{slug.replace('-', '_')}.jpg",
-            f"images/{slug.replace('-', '_')}.jpeg",
-            f"images/{slug.replace('-', '_')}.png",
-            f"images/{slug.replace('-', '_')}.webp",
         ]
     ) or f"images/{slug.replace('-', '_')}.jpg"
 
@@ -216,40 +254,66 @@ def _map_product(row, image_url):
     return product
 
 
+def _get_cached_content(cache_key, loader):
+    now = time.monotonic()
+    cached = _CONTENT_CACHE.get(cache_key)
+    if cached and now < cached["expires_at"]:
+        return cached["value"]
+    value = loader()
+    _CONTENT_CACHE[cache_key] = {
+        "value": value,
+        "expires_at": now + _CONTENT_CACHE_TTL_SECONDS,
+    }
+    return value
+
+
+def invalidate_content_cache():
+    _CONTENT_CACHE.clear()
+
+
 def load_characters():
-    conn = _get_db()
-    rows = conn.execute(
-        "SELECT * FROM characters WHERE is_active = 1 ORDER BY id"
-    ).fetchall()
-    conn.close()
-    return [_map_character(row) for row in rows]
+    def loader():
+        conn = _get_db()
+        rows = conn.execute(
+            "SELECT * FROM characters WHERE is_active = 1 ORDER BY id"
+        ).fetchall()
+        conn.close()
+        return [_map_character(row) for row in rows]
+
+    return _get_cached_content("characters", loader)
 
 
 def load_products():
-    conn = _get_db()
-    products = conn.execute(
-        "SELECT * FROM products WHERE status = 'active' ORDER BY id"
-    ).fetchall()
-    image_rows = conn.execute(
-        "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
-    ).fetchall()
-    conn.close()
-    image_map = {}
-    for row in image_rows:
-        if row["product_id"] not in image_map and row["url"]:
-            image_map[row["product_id"]] = row["url"]
-    return [_map_product(row, image_map.get(row["id"])) for row in products]
+    def loader():
+        conn = _get_db()
+        products = conn.execute(
+            "SELECT * FROM products WHERE status = 'active' ORDER BY id"
+        ).fetchall()
+        image_rows = conn.execute(
+            "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
+        ).fetchall()
+        conn.close()
+        image_map = {}
+        for row in image_rows:
+            if row["product_id"] not in image_map and row["url"]:
+                image_map[row["product_id"]] = row["url"]
+        return [_map_product(row, image_map.get(row["id"])) for row in products]
+
+    return _get_cached_content("products_active", loader)
 
 
 def load_all_products():
-    conn = _get_db()
-    products = conn.execute("SELECT * FROM products ORDER BY id").fetchall()
-    image_rows = conn.execute(
-        "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
-    ).fetchall()
-    conn.close()
-    image_map = {}
-    for row in image_rows:
-        if row["product_id"] not in image_map and row["url"]:
-            image_map[row["product_id"]] = row["url"]
-    return [_map_product(row, image_map.get(row["id"])) for row in products]
+    def loader():
+        conn = _get_db()
+        products = conn.execute("SELECT * FROM products ORDER BY id").fetchall()
+        image_rows = conn.execute(
+            "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
+        ).fetchall()
+        conn.close()
+        image_map = {}
+        for row in image_rows:
+            if row["product_id"] not in image_map and row["url"]:
+                image_map[row["product_id"]] = row["url"]
+        return [_map_product(row, image_map.get(row["id"])) for row in products]
+
+    return _get_cached_content("products_all", loader)

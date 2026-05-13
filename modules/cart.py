@@ -3,6 +3,11 @@ from datetime import datetime, timezone
 from flask import session
 
 from modules.db import _get_db, _get_setting
+from modules.promotions import (
+    apply_promotion_to_price,
+    best_promotion_for_price,
+    get_product_promotion_map,
+)
 from modules.utils import _normalize_static_path, _parse_int
 
 SESSION_CART_KEY = "guest_cart_items"
@@ -12,9 +17,9 @@ DEFAULT_SHIPPING_FEE = 30000
 _CART_TABLES_READY = False
 
 SHIPPING_ZONES = {
-    "city": {"label": "Noi thanh (1-2 ngay)", "multiplier": 1.0},
-    "province": {"label": "Lien tinh (2-4 ngay)", "multiplier": 1.2},
-    "remote": {"label": "Vung xa (4-6 ngay)", "multiplier": 1.45},
+    "city": {"label": "Nội thành (1-2 ngày)", "multiplier": 1.0},
+    "province": {"label": "Liên tỉnh (2-4 ngày)", "multiplier": 1.2},
+    "remote": {"label": "Vùng xa (4-6 ngày)", "multiplier": 1.45},
 }
 
 
@@ -149,17 +154,17 @@ def add_item_to_cart(user, variant_id, quantity=1):
     try:
         variant_id = int(variant_id)
     except (TypeError, ValueError):
-        return False, "San pham khong hop le."
+        return False, "Sản phẩm không hợp lệ."
     quantity = max(1, _parse_int(quantity, 1))
 
     conn = _get_db()
     try:
         variant = _fetch_active_variant(conn, variant_id)
         if variant is None:
-            return False, "Phien ban san pham khong ton tai."
+            return False, "Phiên bản sản phẩm không tồn tại."
         stock_qty = max(_parse_int(variant["stock_qty"], 0), 0)
         if stock_qty <= 0:
-            return False, "Size nay tam het hang."
+            return False, "Size này tạm hết hàng."
 
         if user_id:
             item_map = _get_user_item_map(conn, user_id)
@@ -177,8 +182,8 @@ def add_item_to_cart(user, variant_id, quantity=1):
             _save_guest_item_map(item_map)
 
         if new_qty < current_qty + quantity:
-            return True, f"Da them vao gio. Size nay con toi da {stock_qty} san pham."
-        return True, "Da them vao gio hang."
+            return True, f"Đã thêm vào giỏ. Size này còn tối đa {stock_qty} sản phẩm."
+        return True, "Đã thêm vào giỏ hàng."
     finally:
         conn.close()
 
@@ -189,7 +194,7 @@ def update_cart_item(user, variant_id, quantity):
     try:
         variant_id = int(variant_id)
     except (TypeError, ValueError):
-        return False, "San pham khong hop le."
+        return False, "Sản phẩm không hợp lệ."
     quantity = _parse_int(quantity, 1)
     if quantity <= 0:
         return remove_cart_item(user, variant_id)
@@ -198,10 +203,10 @@ def update_cart_item(user, variant_id, quantity):
     try:
         variant = _fetch_active_variant(conn, variant_id)
         if variant is None:
-            return False, "Phien ban san pham khong ton tai."
+            return False, "Phiên bản sản phẩm không tồn tại."
         stock_qty = max(_parse_int(variant["stock_qty"], 0), 0)
         if stock_qty <= 0:
-            return False, "Size nay da het hang."
+            return False, "Size này đã hết hàng."
 
         new_qty = min(quantity, stock_qty)
         if user_id:
@@ -212,8 +217,8 @@ def update_cart_item(user, variant_id, quantity):
             item_map[variant_id] = new_qty
             _save_guest_item_map(item_map)
         if new_qty < quantity:
-            return True, f"So luong duoc cap nhat toi da {stock_qty}."
-        return True, "Da cap nhat so luong."
+            return True, f"Số lượng được cập nhật tối đa {stock_qty}."
+        return True, "Đã cập nhật số lượng."
     finally:
         conn.close()
 
@@ -224,7 +229,7 @@ def remove_cart_item(user, variant_id):
     try:
         variant_id = int(variant_id)
     except (TypeError, ValueError):
-        return False, "San pham khong hop le."
+        return False, "Sản phẩm không hợp lệ."
 
     conn = _get_db()
     try:
@@ -238,7 +243,7 @@ def remove_cart_item(user, variant_id):
             item_map = _get_guest_item_map()
             item_map.pop(variant_id, None)
             _save_guest_item_map(item_map)
-        return True, "Da xoa san pham khoi gio."
+        return True, "Đã xoá sản phẩm khỏi giỏ."
     finally:
         conn.close()
 
@@ -248,7 +253,7 @@ def apply_coupon_to_cart(user, code):
     user_id = user["id"] if user else None
     code = (code or "").strip().upper()
     if not code:
-        return clear_cart_coupon(user)
+        return False, "Vui lòng nhập mã giảm giá."
 
     conn = _get_db()
     try:
@@ -260,18 +265,18 @@ def apply_coupon_to_cart(user, code):
             state = _get_guest_state()
         items = _build_items(conn, item_map)
         if not items:
-            return False, "Gio hang trong, khong the ap ma."
+            return False, "Giỏ hàng trống, không thể áp mã."
         subtotal = sum(item["line_total"] for item in items)
         result = _evaluate_coupon(conn, code, items, subtotal)
         if not result.get("valid"):
-            return False, result.get("error") or "Ma giam gia khong hop le."
+            return False, result.get("error") or "Mã giảm giá không hợp lệ."
         if user_id:
             _save_user_state(conn, user_id, result["coupon"]["code"], state.get("shipping_zone"))
             conn.commit()
         else:
             session[SESSION_COUPON_KEY] = result["coupon"]["code"]
             session.modified = True
-        return True, "Da ap dung ma giam gia."
+        return True, "Đã áp dụng mã giảm giá."
     finally:
         conn.close()
 
@@ -288,7 +293,7 @@ def clear_cart_coupon(user):
     else:
         session.pop(SESSION_COUPON_KEY, None)
         session.modified = True
-    return True, "Da go ma giam gia."
+    return True, "Đã gỡ mã giảm giá."
 
 
 def set_shipping_zone(user, zone):
@@ -296,7 +301,7 @@ def set_shipping_zone(user, zone):
     user_id = user["id"] if user else None
     zone = (zone or "").strip()
     if zone and zone not in SHIPPING_ZONES:
-        return False, "Tuy chon van chuyen khong hop le."
+        return False, "Tuỳ chọn vận chuyển không hợp lệ."
 
     if user_id:
         conn = _get_db()
@@ -310,7 +315,7 @@ def set_shipping_zone(user, zone):
         else:
             session.pop(SESSION_SHIPPING_KEY, None)
         session.modified = True
-    return True, "Da cap nhat uoc tinh van chuyen."
+    return True, "Đã cập nhật ước tính vận chuyển."
 
 
 def merge_guest_cart_into_user(user_id):
@@ -497,6 +502,9 @@ def _build_items(conn, item_map):
     if not item_map:
         return []
     variant_rows = _load_variant_rows(conn, list(item_map.keys()))
+    promotion_map = get_product_promotion_map(
+        conn, [row["product_id"] for row in variant_rows.values()]
+    )
     items = []
     for variant_id, requested_qty in item_map.items():
         variant = variant_rows.get(variant_id)
@@ -508,11 +516,15 @@ def _build_items(conn, item_map):
         if stock_qty <= 0:
             continue
         qty = min(max(_parse_int(requested_qty, 1), 1), stock_qty)
-        unit_price = (
+        regular_unit_price = (
             _parse_int(variant["price"], 0)
             if variant["price"] is not None
             else _parse_int(variant["base_price"], 0)
         )
+        promotion = best_promotion_for_price(
+            regular_unit_price, promotion_map.get(variant["product_id"])
+        )
+        unit_price = apply_promotion_to_price(regular_unit_price, promotion)
         image = variant["image"]
         if image:
             image = _normalize_static_path(image)
@@ -529,6 +541,9 @@ def _build_items(conn, item_map):
                 "qty": qty,
                 "stock_qty": stock_qty,
                 "unit_price": unit_price,
+                "regular_unit_price": regular_unit_price,
+                "promotion_name": promotion["name"] if promotion else None,
+                "has_promotion": bool(promotion and unit_price < regular_unit_price),
                 "line_total": unit_price * qty,
                 "image": image,
             }
@@ -595,7 +610,7 @@ def _load_product_image_map(conn, product_ids):
 def _evaluate_coupon(conn, code, items, subtotal):
     normalized_code = (code or "").strip().upper()
     if not normalized_code:
-        return {"valid": False, "error": "Ma giam gia trong."}
+        return {"valid": False, "error": "Mã giảm giá trống."}
 
     coupon = conn.execute(
         """
@@ -606,21 +621,21 @@ def _evaluate_coupon(conn, code, items, subtotal):
         (normalized_code,),
     ).fetchone()
     if coupon is None:
-        return {"valid": False, "error": "Ma giam gia khong ton tai hoac da het han."}
+        return {"valid": False, "error": "Mã giảm giá không tồn tại hoặc đã hết hạn."}
 
     now = datetime.utcnow()
     starts_at = _parse_iso_datetime(coupon["starts_at"])
     if starts_at and now < starts_at:
-        return {"valid": False, "error": "Ma giam gia chua den thoi gian su dung."}
+        return {"valid": False, "error": "Mã giảm giá chưa đến thời gian sử dụng."}
     ends_at = _parse_iso_datetime(coupon["ends_at"])
     if ends_at and now > ends_at:
-        return {"valid": False, "error": "Ma giam gia da het han."}
+        return {"valid": False, "error": "Mã giảm giá đã hết hạn."}
     usage_limit = coupon["usage_limit"]
     if usage_limit is not None and _parse_int(coupon["used_count"], 0) >= _parse_int(usage_limit, 0):
-        return {"valid": False, "error": "Ma giam gia da het luot su dung."}
+        return {"valid": False, "error": "Mã giảm giá đã hết lượt sử dụng."}
     min_order = _parse_int(coupon["min_order"], 0)
     if subtotal < min_order:
-        return {"valid": False, "error": f"Don hang toi thieu {min_order:,} de dung ma nay."}
+        return {"valid": False, "error": f"Đơn hàng tối thiểu {min_order:,} để dùng mã này."}
 
     applies_to = (coupon["applies_to"] or "all").strip().lower()
     if applies_to == "all":
@@ -631,7 +646,7 @@ def _evaluate_coupon(conn, code, items, subtotal):
             item["line_total"] for item in items if item["product_id"] in eligible_product_ids
         )
     if eligible_subtotal <= 0:
-        return {"valid": False, "error": "Ma giam gia khong ap dung cho san pham trong gio."}
+        return {"valid": False, "error": "Mã giảm giá không áp dụng cho sản phẩm trong giỏ."}
 
     discount_type = (coupon["discount_type"] or "").strip().lower()
     value = _parse_int(coupon["value"], 0)
@@ -644,7 +659,7 @@ def _evaluate_coupon(conn, code, items, subtotal):
         discount = min(discount, _parse_int(max_discount, 0))
     discount = max(0, min(discount, eligible_subtotal))
     if discount <= 0:
-        return {"valid": False, "error": "Ma giam gia khong tao ra uu dai hop le."}
+        return {"valid": False, "error": "Mã giảm giá không tạo ra ưu đãi hợp lệ."}
     return {"valid": True, "coupon": coupon, "discount": discount}
 
 
@@ -671,24 +686,8 @@ def _eligible_product_ids(conn, coupon_id, applies_to):
 
 
 def _estimate_shipping(conn, discounted_subtotal, shipping_zone):
-    if not shipping_zone or shipping_zone not in SHIPPING_ZONES:
-        return {
-            "fee": 0,
-            "estimated": False,
-            "label": "Chua uoc tinh",
-        }
-
-    base_fee = _parse_int(
-        _get_setting(conn, "shipping_fee", str(DEFAULT_SHIPPING_FEE)),
-        DEFAULT_SHIPPING_FEE,
-    )
-    if base_fee <= 0:
-        base_fee = DEFAULT_SHIPPING_FEE
-
-    free_threshold = _parse_int(_get_setting(conn, "free_shipping_threshold", "0"), 0)
-    if free_threshold > 0 and discounted_subtotal >= free_threshold:
-        return {"fee": 0, "estimated": True, "label": "Mien phi van chuyen"}
-
-    multiplier = SHIPPING_ZONES[shipping_zone]["multiplier"]
-    fee = max(0, int(round(base_fee * multiplier)))
-    return {"fee": fee, "estimated": True, "label": SHIPPING_ZONES[shipping_zone]["label"]}
+    return {
+        "fee": 0,
+        "estimated": False,
+        "label": "Tính phí vận chuyển ở bước thanh toán",
+    }

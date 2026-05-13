@@ -70,7 +70,8 @@
                 <td>{{ promo.value }}</td>
                 <td>{{ promo.category_name or '-' }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('admin_promotion_delete', promo_id=promo.id) }}" onsubmit="return confirm('Xóa chương trình?')">
+                    <a class="btn btn-secondary" href="{{ url_for('admin_promotion_detail', promo_id=promo.id) }}">Chi tiết</a>
+                    <form method="post" action="{{ url_for('admin_promotion_delete', promo_id=promo.id) }}" style="display: inline;" onsubmit="return confirm('Xóa chương trình?')">
                         <button class="btn btn-danger" type="submit">Xóa</button>
                     </form>
                 </td>

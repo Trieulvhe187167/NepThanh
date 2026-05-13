@@ -1,10 +1,15 @@
 import json
+import threading
 from datetime import datetime
 
-from modules.cart import clear_cart, get_cart_snapshot, set_shipping_zone
+from modules.cart import clear_cart, get_cart_snapshot
 from modules.customer_account import ensure_account_tables, get_address_by_id, get_default_address
 from modules.db import _get_db
-from modules.notifications import send_order_confirmation_email, send_order_status_email
+from modules.notifications import (
+    send_new_order_alert_to_owner,
+    send_order_confirmation_email,
+    send_order_status_email,
+)
 from modules.payments_vnpay import (
     build_vnpay_payment_url,
     is_vnpay_success,
@@ -12,10 +17,19 @@ from modules.payments_vnpay import (
     verify_vnpay_response,
     vnpay_enabled,
 )
+from modules.shipping import select_shipping_quote
 from modules.utils import _build_order_number, _parse_int
 
 _CHECKOUT_TABLES_READY = False
 _ORDER_CANCEL_STATUSES = {"cancelled", "refunded", "returned"}
+_STOCK_RESTORE_REASONS = {
+    "payment_failed",
+    "admin_cancelled",
+    "admin_refunded",
+    "admin_returned",
+}
+_STOCK_REDEDUCT_REASONS = {"admin_reactivated"}
+_STOCK_TRACKING_REASONS = _STOCK_RESTORE_REASONS | _STOCK_REDEDUCT_REASONS
 
 
 def ensure_checkout_tables():
@@ -94,6 +108,8 @@ def get_checkout_prefill(user):
         return base
     base.update(
         {
+            "full_name": address["recipient_name"] or base.get("full_name", ""),
+            "phone": address["phone"] or base.get("phone", ""),
             "line1": address["line1"] or "",
             "line2": address["line2"] or "",
             "ward": address["ward"] or "",
@@ -124,7 +140,7 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
     ensure_checkout_tables()
     cart = get_cart_snapshot(user)
     if not cart["items"]:
-        return {"ok": False, "error": "Gio hang trong, vui long them san pham truoc khi thanh toan."}
+        return {"ok": False, "error": "Giỏ hàng trống, vui lòng thêm sản phẩm trước khi thanh toán."}
 
     user_id = user["id"] if user else None
     selected_address = None
@@ -140,43 +156,61 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
     ward = _address_or_form_value(selected_address, "ward", form_data)
     district = _address_or_form_value(selected_address, "district", form_data)
     province = _address_or_form_value(selected_address, "province", form_data)
+    ghn_province_id = (form_data.get("ghn_province_id") or "").strip()
+    ghn_district_id = (form_data.get("ghn_district_id") or "").strip()
+    ghn_ward_code = (form_data.get("ghn_ward_code") or "").strip()
     notes = (form_data.get("notes") or "").strip()
     payment_method = (form_data.get("payment_method") or "cod").strip().lower()
-    shipping_zone = (form_data.get("shipping_zone") or cart.get("shipping_zone") or "").strip()
+    shipping_method = (form_data.get("shipping_method") or "").strip()
 
     if payment_method not in {"cod", "vnpay"}:
-        return {"ok": False, "error": "Phuong thuc thanh toan khong hop le."}
+        return {"ok": False, "error": "Phương thức thanh toán không hợp lệ."}
     if payment_method == "vnpay" and not vnpay_enabled():
-        return {"ok": False, "error": "VNPay chua duoc cau hinh."}
+        return {"ok": False, "error": "VNPay chưa được cấu hình."}
     if not recipient_name:
-        return {"ok": False, "error": "Vui long nhap ten nguoi nhan."}
+        return {"ok": False, "error": "Vui lòng nhập tên người nhận."}
     if not email or "@" not in email:
-        return {"ok": False, "error": "Vui long nhap email hop le de nhan thong bao don hang."}
+        return {"ok": False, "error": "Vui lòng nhập email hợp lệ để nhận thông báo đơn hàng."}
     if not phone:
-        return {"ok": False, "error": "Vui long nhap so dien thoai nguoi nhan."}
+        return {"ok": False, "error": "Vui lòng nhập số điện thoại người nhận."}
     if not line1 or not district or not province:
-        return {"ok": False, "error": "Vui long nhap day du dia chi giao hang."}
-    if not shipping_zone:
-        return {"ok": False, "error": "Vui long chon phuong thuc van chuyen."}
-    ok_shipping, shipping_error = set_shipping_zone(user, shipping_zone)
-    if not ok_shipping:
-        return {"ok": False, "error": shipping_error}
-
+        return {"ok": False, "error": "Vui lòng nhập đầy đủ địa chỉ giao hàng."}
     cart = get_cart_snapshot(user)
     coupon_code = cart.get("coupon_code")
+    address = {
+        "line1": line1,
+        "ward": ward,
+        "district": district,
+        "province": province,
+        "ghn_province_id": ghn_province_id,
+        "ghn_district_id": ghn_district_id,
+        "ghn_ward_code": ghn_ward_code,
+    }
 
     conn = _get_db()
     try:
+        shipping_quote, shipping_error = select_shipping_quote(
+            conn,
+            cart,
+            address,
+            shipping_method,
+            payment_method=payment_method,
+        )
+        if shipping_error:
+            return {"ok": False, "error": shipping_error}
+        shipping_fee = shipping_quote["fee"]
+        order_total = max(cart["subtotal"] - cart["discount_amount"] + shipping_fee, 0)
+
         item_map = _variant_catalog(conn, [item["variant_id"] for item in cart["items"]])
         for item in cart["items"]:
             variant = item_map.get(item["variant_id"])
             if variant is None:
-                return {"ok": False, "error": "Mot so san pham da khong con ton tai."}
+                return {"ok": False, "error": "Một số sản phẩm đã không còn tồn tại."}
             stock_qty = _parse_int(variant["stock_qty"], 0)
             if stock_qty < item["qty"]:
                 return {
                     "ok": False,
-                    "error": f"Size {variant['size']} cua {item['product_name']} chi con {stock_qty}.",
+                    "error": f"Size {variant['size']} của {item['product_name']} chỉ còn {stock_qty}.",
                 }
 
         order_number = _build_order_number()
@@ -185,23 +219,25 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
         if coupon_code:
             coupon_text = f"Coupon: {coupon_code}"
             full_notes = f"{full_notes}\n{coupon_text}".strip() if full_notes else coupon_text
+        shipping_note = f"Vận chuyển: {shipping_quote['carrier_label']} - {shipping_quote['service_label']}"
+        full_notes = f"{full_notes}\n{shipping_note}".strip() if full_notes else shipping_note
 
         cur = conn.execute(
             """
             INSERT INTO orders (
                 order_number, user_id, status, subtotal, shipping_fee, discount_amount, total,
                 payment_status, recipient_name, email, phone, line1, line2, ward, district, province,
-                notes, created_at, updated_at
+                shipping_provider, notes, created_at, updated_at
             )
-            VALUES (?, ?, 'new', ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, 'new', ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 order_number,
                 user_id,
                 cart["subtotal"],
-                cart["shipping_fee"],
+                shipping_fee,
                 cart["discount_amount"],
-                cart["total"],
+                order_total,
                 recipient_name,
                 email,
                 phone,
@@ -210,6 +246,7 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
                 ward,
                 district,
                 province,
+                shipping_quote["carrier_label"],
                 full_notes,
                 now,
                 now,
@@ -257,7 +294,7 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
         conn.execute(
             """
             INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
-            VALUES (?, 'new', 'Khach dat hang qua checkout', NULL, ?)
+            VALUES (?, 'new', 'Khách đặt hàng qua checkout', NULL, ?)
             """,
             (order_id, now),
         )
@@ -279,10 +316,10 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
             )
 
         payment_url = None
-        if payment_method == "vnpay" and cart["total"] > 0:
+        if payment_method == "vnpay" and order_total > 0:
             payment_url = build_vnpay_payment_url(
                 order_number=order_number,
-                amount_vnd=cart["total"],
+                amount_vnd=order_total,
                 return_url=vnpay_return_url,
                 ip_addr=remote_addr,
             )
@@ -292,10 +329,10 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
                 status="pending",
                 source="checkout",
                 txn_ref=order_number,
-                amount=cart["total"],
+                amount=order_total,
                 payload={"phase": "redirect_created"},
             )
-        elif cart["total"] <= 0:
+        elif order_total <= 0:
             conn.execute(
                 """
                 UPDATE orders
@@ -307,7 +344,7 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
             conn.execute(
                 """
                 INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
-                VALUES (?, 'confirmed', 'Don hang 0 dong, xac nhan thanh toan tu dong', NULL, ?)
+                VALUES (?, 'confirmed', 'Đơn hàng 0 đồng, xác nhận thanh toán tự động', NULL, ?)
                 """,
                 (order_id, now),
             )
@@ -322,7 +359,16 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
         conn.close()
 
     clear_cart(user)
-    send_order_confirmation_email(_row_to_dict(order_row), [_row_to_dict(row) for row in item_rows])
+    order_dict = _row_to_dict(order_row)
+    items_list = [_row_to_dict(row) for row in item_rows]
+    # Gửi email xác nhận cho khách
+    send_order_confirmation_email(order_dict, items_list)
+    # Gửi email thông báo đơn mới cho chủ shop (chạy bất đồng bộ)
+    threading.Thread(
+        target=send_new_order_alert_to_owner,
+        args=(order_dict, items_list),
+        daemon=True,
+    ).start()
 
     return {
         "ok": True,
@@ -426,9 +472,9 @@ def handle_vnpay_callback(params, source="return"):
                     INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
                     VALUES (?, ?, ?, NULL, ?)
                     """,
-                    (order["id"], new_status, "Thanh toan VNPay thanh cong", now),
+                    (order["id"], new_status, "Thanh toán VNPay thành công", now),
                 )
-                status_note = "Thanh toan VNPay thanh cong"
+                status_note = "Thanh toán VNPay thành công"
                 status_changed = True
         else:
             if order["payment_status"] != "paid" and order["status"] not in _ORDER_CANCEL_STATUSES:
@@ -444,18 +490,18 @@ def handle_vnpay_callback(params, source="return"):
                 conn.execute(
                     """
                     INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
-                    VALUES (?, 'cancelled', 'Thanh toan VNPay that bai', NULL, ?)
+                    VALUES (?, 'cancelled', 'Thanh toán VNPay thất bại', NULL, ?)
                     """,
                     (order["id"], now),
                 )
-                status_note = "Thanh toan VNPay that bai"
+                status_note = "Thanh toán VNPay thất bại"
                 status_changed = True
             elif order["payment_status"] not in {"paid", "failed"}:
                 conn.execute(
                     "UPDATE orders SET payment_status = 'failed', updated_at = ? WHERE id = ?",
                     (now, order["id"]),
                 )
-                status_note = "Thanh toan VNPay that bai"
+                status_note = "Thanh toán VNPay thất bại"
                 status_changed = True
 
         conn.commit()
@@ -513,7 +559,33 @@ def _variant_catalog(conn, variant_ids):
     return data
 
 
-def _restore_stock_for_order(conn, order_id, order_number, now):
+def _stock_already_restored_for_order(conn, order_number):
+    reasons = sorted(_STOCK_TRACKING_REASONS)
+    placeholders = ",".join("?" for _ in reasons)
+    row = conn.execute(
+        f"""
+        SELECT COALESCE(SUM(change_qty), 0) AS restored_qty
+        FROM inventory_movements
+        WHERE reason IN ({placeholders})
+          AND note LIKE ?
+        """,
+        (*reasons, f"%{order_number}%"),
+    ).fetchone()
+    return row is not None and int(row["restored_qty"] or 0) > 0
+
+
+def _restore_stock_for_order(
+    conn,
+    order_id,
+    order_number,
+    now,
+    reason="payment_failed",
+    note=None,
+    admin_id=None,
+):
+    if _stock_already_restored_for_order(conn, order_number):
+        return False
+
     items = conn.execute(
         """
         SELECT variant_id, qty
@@ -522,6 +594,10 @@ def _restore_stock_for_order(conn, order_id, order_number, now):
         """,
         (order_id,),
     ).fetchall()
+    if not items:
+        return False
+
+    movement_note = note or f"Rollback {order_number}"
     for item in items:
         conn.execute(
             "UPDATE product_variants SET stock_qty = stock_qty + ? WHERE id = ?",
@@ -530,15 +606,71 @@ def _restore_stock_for_order(conn, order_id, order_number, now):
         conn.execute(
             """
             INSERT INTO inventory_movements (variant_id, change_qty, reason, note, admin_id, created_at)
-            VALUES (?, ?, 'payment_failed', ?, NULL, ?)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 item["variant_id"],
                 item["qty"],
-                f"Rollback {order_number}",
+                reason,
+                movement_note,
+                admin_id,
                 now,
             ),
         )
+    return True
+
+
+def _deduct_restored_stock_for_order(
+    conn,
+    order_id,
+    order_number,
+    now,
+    reason="admin_reactivated",
+    note=None,
+    admin_id=None,
+):
+    if not _stock_already_restored_for_order(conn, order_number):
+        return False
+
+    items = conn.execute(
+        """
+        SELECT order_items.variant_id, order_items.qty, product_variants.stock_qty
+        FROM order_items
+        JOIN product_variants ON product_variants.id = order_items.variant_id
+        WHERE order_items.order_id = ? AND order_items.variant_id IS NOT NULL
+        """,
+        (order_id,),
+    ).fetchall()
+    if not items:
+        return False
+
+    for item in items:
+        if int(item["stock_qty"] or 0) < int(item["qty"] or 0):
+            raise ValueError(
+                f"Không đủ tồn kho để mở lại đơn {order_number}."
+            )
+
+    movement_note = note or f"Reactivate {order_number}"
+    for item in items:
+        conn.execute(
+            "UPDATE product_variants SET stock_qty = stock_qty - ? WHERE id = ?",
+            (item["qty"], item["variant_id"]),
+        )
+        conn.execute(
+            """
+            INSERT INTO inventory_movements (variant_id, change_qty, reason, note, admin_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                item["variant_id"],
+                -item["qty"],
+                reason,
+                movement_note,
+                admin_id,
+                now,
+            ),
+        )
+    return True
 
 
 def _log_payment(

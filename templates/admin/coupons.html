@@ -74,7 +74,8 @@
                 <td>{{ coupon.value }}</td>
                 <td>{{ coupon.is_active }}</td>
                 <td>
-                    <form method="post" action="{{ url_for('admin_coupon_delete', coupon_id=coupon.id) }}" onsubmit="return confirm('Xóa coupon?')">
+                    <a class="btn btn-secondary" href="{{ url_for('admin_coupon_detail', coupon_id=coupon.id) }}">Chi tiết</a>
+                    <form method="post" action="{{ url_for('admin_coupon_delete', coupon_id=coupon.id) }}" style="display: inline;" onsubmit="return confirm('Xóa coupon?')">
                         <button class="btn btn-danger" type="submit">Xóa</button>
                     </form>
                 </td>

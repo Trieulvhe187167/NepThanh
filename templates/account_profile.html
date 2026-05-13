@@ -23,12 +23,15 @@
                     <button type="submit" class="btn-secondary">Lưu hồ sơ</button>
                 </div>
             </form>
+            <div class="account-security-link">
+                <a href="{{ url_for('account_security') }}" class="btn-outline">Bảo mật tài khoản</a>
+            </div>
         </div>
 
         <div class="account-block">
             <h2>Địa chỉ giao hàng</h2>
             {% for address in addresses %}
-            <form method="post" action="{{ url_for('account_address_update', address_id=address.id) }}" class="address-card">
+            <form method="post" action="{{ url_for('account_address_update', address_id=address.id) }}" class="address-card js-address-form">
                 <div class="address-head">
                     <strong>{{ address.recipient_name or profile.full_name or 'Người nhận' }}</strong>
                     {% if address.is_default %}<span class="status-pill">Mặc định</span>{% endif %}
@@ -38,9 +41,21 @@
                     <label>Số điện thoại<input type="text" name="phone" value="{{ address.phone or '' }}" /></label>
                     <label>Địa chỉ<input type="text" name="line1" value="{{ address.line1 }}" required /></label>
                     <label>Địa chỉ bổ sung<input type="text" name="line2" value="{{ address.line2 or '' }}" /></label>
-                    <label>Phường/xã<input type="text" name="ward" value="{{ address.ward or '' }}" /></label>
-                    <label>Quận/huyện<input type="text" name="district" value="{{ address.district }}" required /></label>
-                    <label>Tỉnh/thành<input type="text" name="province" value="{{ address.province }}" required /></label>
+                    <label>
+                        Tỉnh / thành phố
+                        <input type="text" name="province" value="{{ address.province }}" list="account_province_options" autocomplete="off" data-address-province required />
+                        <input type="hidden" name="ghn_province_id" data-address-province-id />
+                    </label>
+                    <label>
+                        Quận / huyện
+                        <input type="text" name="district" value="{{ address.district }}" list="account_district_options" autocomplete="off" data-address-district required />
+                        <input type="hidden" name="ghn_district_id" data-address-district-id />
+                    </label>
+                    <label>
+                        Phường / xã
+                        <input type="text" name="ward" value="{{ address.ward or '' }}" list="account_ward_options" autocomplete="off" data-address-ward required />
+                        <input type="hidden" name="ghn_ward_code" data-address-ward-code />
+                    </label>
                 </div>
                 <label class="check-row">
                     <input type="checkbox" name="is_default" value="1" {% if address.is_default %}checked{% endif %} />
@@ -65,15 +80,27 @@
             {% endfor %}
 
             <h3>Thêm địa chỉ mới</h3>
-            <form method="post" action="{{ url_for('account_address_add') }}" class="address-card">
+            <form method="post" action="{{ url_for('account_address_add') }}" class="address-card js-address-form">
                 <div class="checkout-grid">
                     <label>Tên người nhận<input type="text" name="recipient_name" value="{{ profile.full_name or '' }}" /></label>
                     <label>Số điện thoại<input type="text" name="phone" value="{{ profile.phone or '' }}" /></label>
                     <label>Địa chỉ<input type="text" name="line1" required /></label>
                     <label>Địa chỉ bổ sung<input type="text" name="line2" /></label>
-                    <label>Phường/xã<input type="text" name="ward" /></label>
-                    <label>Quận/huyện<input type="text" name="district" required /></label>
-                    <label>Tỉnh/thành<input type="text" name="province" required /></label>
+                    <label>
+                        Tỉnh / thành phố
+                        <input type="text" name="province" list="account_province_options" autocomplete="off" data-address-province required />
+                        <input type="hidden" name="ghn_province_id" data-address-province-id />
+                    </label>
+                    <label>
+                        Quận / huyện
+                        <input type="text" name="district" list="account_district_options" autocomplete="off" data-address-district required />
+                        <input type="hidden" name="ghn_district_id" data-address-district-id />
+                    </label>
+                    <label>
+                        Phường / xã
+                        <input type="text" name="ward" list="account_ward_options" autocomplete="off" data-address-ward required />
+                        <input type="hidden" name="ghn_ward_code" data-address-ward-code />
+                    </label>
                 </div>
                 <label class="check-row">
                     <input type="checkbox" name="is_default" value="1" />
@@ -83,5 +110,155 @@
             </form>
         </div>
     </div>
+    <datalist id="account_province_options"></datalist>
+    <datalist id="account_district_options"></datalist>
+    <datalist id="account_ward_options"></datalist>
 </section>
+
+<script>
+(function () {
+    var forms = Array.prototype.slice.call(document.querySelectorAll(".js-address-form"));
+    if (!forms.length) return;
+
+    var lists = {
+        provinces: [],
+        districts: [],
+        wards: []
+    };
+    var datalists = {
+        provinces: document.getElementById("account_province_options"),
+        districts: document.getElementById("account_district_options"),
+        wards: document.getElementById("account_ward_options")
+    };
+
+    function normalizeText(value) {
+        return (value || "")
+            .toString()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, " ");
+    }
+
+    function renderDatalist(element, items, idKey) {
+        if (!element) return;
+        element.innerHTML = items.map(function (item) {
+            var option = document.createElement("option");
+            option.value = item.name || "";
+            option.setAttribute("data-id", item[idKey] || "");
+            return option.outerHTML;
+        }).join("");
+    }
+
+    function findLocation(items, name) {
+        var wanted = normalizeText(name);
+        if (!wanted) return null;
+        return items.find(function (item) {
+            return normalizeText(item.name) === wanted;
+        }) || null;
+    }
+
+    function fetchLocation(url) {
+        return fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(function (response) { return response.json(); })
+            .then(function (payload) { return payload && payload.ok ? payload.items || [] : []; })
+            .catch(function () { return []; });
+    }
+
+    function formFields(form) {
+        return {
+            province: form.querySelector("[data-address-province]"),
+            district: form.querySelector("[data-address-district]"),
+            ward: form.querySelector("[data-address-ward]"),
+            provinceId: form.querySelector("[data-address-province-id]"),
+            districtId: form.querySelector("[data-address-district-id]"),
+            wardCode: form.querySelector("[data-address-ward-code]")
+        };
+    }
+
+    function loadDistricts(provinceId) {
+        if (!provinceId) {
+            lists.districts = [];
+            renderDatalist(datalists.districts, [], "id");
+            return Promise.resolve([]);
+        }
+        return fetchLocation("{{ url_for('shipping_location_districts') }}?province_id=" + encodeURIComponent(provinceId)).then(function (items) {
+            lists.districts = items;
+            renderDatalist(datalists.districts, items, "id");
+            return items;
+        });
+    }
+
+    function loadWards(districtId) {
+        if (!districtId) {
+            lists.wards = [];
+            renderDatalist(datalists.wards, [], "code");
+            return Promise.resolve([]);
+        }
+        return fetchLocation("{{ url_for('shipping_location_wards') }}?district_id=" + encodeURIComponent(districtId)).then(function (items) {
+            lists.wards = items;
+            renderDatalist(datalists.wards, items, "code");
+            return items;
+        });
+    }
+
+    function syncProvince(form, clearChildren) {
+        var f = formFields(form);
+        var selected = findLocation(lists.provinces, f.province ? f.province.value : "");
+        if (f.provinceId) f.provinceId.value = selected ? selected.id : "";
+        if (clearChildren) {
+            if (f.district) f.district.value = "";
+            if (f.ward) f.ward.value = "";
+            if (f.districtId) f.districtId.value = "";
+            if (f.wardCode) f.wardCode.value = "";
+            lists.wards = [];
+            renderDatalist(datalists.wards, [], "code");
+        }
+        return selected ? loadDistricts(selected.id) : Promise.resolve([]);
+    }
+
+    function syncDistrict(form, clearChildren) {
+        var f = formFields(form);
+        var selected = findLocation(lists.districts, f.district ? f.district.value : "");
+        if (f.districtId) f.districtId.value = selected ? selected.id : "";
+        if (clearChildren) {
+            if (f.ward) f.ward.value = "";
+            if (f.wardCode) f.wardCode.value = "";
+        }
+        return selected ? loadWards(selected.id) : Promise.resolve([]);
+    }
+
+    function syncWard(form) {
+        var f = formFields(form);
+        var selected = findLocation(lists.wards, f.ward ? f.ward.value : "");
+        if (f.wardCode) f.wardCode.value = selected ? selected.code : "";
+    }
+
+    function bindForm(form) {
+        var f = formFields(form);
+        if (f.province) {
+            f.province.addEventListener("change", function () { syncProvince(form, true); });
+            f.province.addEventListener("input", function () { if (f.provinceId) f.provinceId.value = ""; });
+        }
+        if (f.district) {
+            f.district.addEventListener("change", function () { syncDistrict(form, true); });
+            f.district.addEventListener("input", function () { if (f.districtId) f.districtId.value = ""; });
+        }
+        if (f.ward) {
+            f.ward.addEventListener("change", function () { syncWard(form); });
+            f.ward.addEventListener("input", function () { if (f.wardCode) f.wardCode.value = ""; });
+        }
+        form.addEventListener("submit", function () {
+            syncWard(form);
+        });
+    }
+
+    fetchLocation("{{ url_for('shipping_location_provinces') }}").then(function (items) {
+        lists.provinces = items;
+        renderDatalist(datalists.provinces, items, "id");
+        forms.forEach(bindForm);
+    });
+})();
+</script>
 {% endblock %}

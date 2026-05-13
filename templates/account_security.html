@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="account-page">
+    <h1>Bảo mật tài khoản</h1>
+    <div class="account-layout">
+        <div class="account-block">
+            <h2>Xác thực email</h2>
+            <p><strong>{{ profile.email }}</strong></p>
+            {% if profile.is_verified %}
+            <span class="status-pill status-pill-success">Đã xác thực</span>
+            {% else %}
+            <span class="status-pill">Chưa xác thực</span>
+            <p class="field-hint">Email xác thực giúp bảo vệ tài khoản và hỗ trợ khôi phục mật khẩu.</p>
+            <form method="post">
+                <input type="hidden" name="action" value="resend_verification" />
+                <button type="submit" class="btn-secondary">Gửi lại email xác thực</button>
+            </form>
+            {% endif %}
+        </div>
+
+        <div class="account-block">
+            <h2>Đổi mật khẩu</h2>
+            <form method="post" class="checkout-grid">
+                <input type="hidden" name="action" value="change_password" />
+                <label>
+                    Mật khẩu hiện tại
+                    <input type="password" name="current_password" autocomplete="current-password" required />
+                </label>
+                <label>
+                    Mật khẩu mới
+                    <input type="password" name="new_password" autocomplete="new-password" required />
+                </label>
+                <label>
+                    Xác nhận mật khẩu mới
+                    <input type="password" name="confirm_password" autocomplete="new-password" required />
+                </label>
+                <div>
+                    <button type="submit" class="btn-secondary">Cập nhật mật khẩu</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</section>
+{% endblock %}

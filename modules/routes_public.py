@@ -14,6 +14,15 @@ from modules.auth import (
     _google_enabled,
     _google_oauth_url,
 )
+from modules.account_security import (
+    TOKEN_PURPOSE_EMAIL_VERIFY,
+    TOKEN_PURPOSE_PASSWORD_RESET,
+    consume_account_token,
+    create_account_token,
+    get_security_profile,
+    mark_user_email_verified,
+    update_user_password,
+)
 from modules.cart import (
     add_item_to_cart,
     apply_coupon_to_cart,
@@ -44,6 +53,16 @@ from modules.customer_account import (
 )
 from modules.data_access import load_characters, load_products
 from modules.db import _get_db
+from modules.notifications import (
+    send_email_verification_email,
+    send_password_reset_email,
+)
+from modules.shipping import (
+    list_shipping_districts,
+    list_shipping_provinces,
+    list_shipping_wards,
+    quote_shipping_options,
+)
 from modules.utils import (
     _background_from_referrer,
     _hash_ip,
@@ -79,17 +98,50 @@ def register_public_routes(app):
         products = load_products()
         characters = load_characters()
 
-        search_query = request.args.get('q', '').strip().lower()
+        search_query = request.args.get("q", "").strip().lower()
         if search_query:
-            products = [p for p in products if search_query in p.get('name', '').lower() or search_query in p.get('short_description', '').lower()]
+            products = [
+                p
+                for p in products
+                if search_query in p.get("name", "").lower()
+                or search_query in p.get("short_description", "").lower()
+            ]
 
-        selected_character_slugs = request.args.getlist('character')
+        selected_character_slugs = request.args.getlist("character")
         if selected_character_slugs:
-            selected_char_ids = [c['id'] for c in characters if c.get('slug') in selected_character_slugs]
+            selected_char_ids = [
+                c["id"] for c in characters if c.get("slug") in selected_character_slugs
+            ]
             if selected_char_ids:
-                products = [p for p in products if p.get('character_id') in selected_char_ids]
+                products = [
+                    p for p in products if p.get("character_id") in selected_char_ids
+                ]
 
-        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        selected_sizes = {
+            size.strip().lower()
+            for size in request.args.getlist("size")
+            if size and size.strip()
+        }
+        if selected_sizes:
+            selected_size_values = sorted(selected_sizes)
+            placeholders = ",".join("?" for _ in selected_size_values)
+            conn = _get_db()
+            try:
+                rows = conn.execute(
+                    f"""
+                    SELECT DISTINCT product_id
+                    FROM product_variants
+                    WHERE is_active = 1
+                      AND LOWER(size) IN ({placeholders})
+                    """,
+                    tuple(selected_size_values),
+                ).fetchall()
+            finally:
+                conn.close()
+            product_ids = {row["product_id"] for row in rows}
+            products = [p for p in products if p.get("id") in product_ids]
+
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
             return render_template("partials/product_grid.html", products=products)
 
         return render_template(
@@ -209,6 +261,24 @@ def register_public_routes(app):
         ).fetchone()
         return recent_count["count"] < 10
 
+    def _send_verification_for_user(user_id, email):
+        token = create_account_token(
+            user_id,
+            TOKEN_PURPOSE_EMAIL_VERIFY,
+            expires_in_minutes=24 * 60,
+        )
+        verify_url = url_for("verify_email", token=token, _external=True)
+        return send_email_verification_email(email, verify_url)
+
+    def _send_password_reset_for_user(user):
+        token = create_account_token(
+            user["id"],
+            TOKEN_PURPOSE_PASSWORD_RESET,
+            expires_in_minutes=60,
+        )
+        reset_url = url_for("reset_password", token=token, _external=True)
+        return send_password_reset_email(user["email"], reset_url)
+
     @app.route("/cart")
     def cart_view():
         cart = get_cart_snapshot(_get_current_user())
@@ -263,7 +333,7 @@ def register_public_routes(app):
         user = _get_current_user()
         cart = get_cart_snapshot(user)
         if not cart["items"]:
-            flash("Gio hang trong, vui long them san pham truoc khi thanh toan.", "error")
+            flash("Giỏ hàng trống, vui lòng thêm sản phẩm trước khi thanh toán.", "error")
             return redirect(url_for("cart_view"))
 
         profile = get_checkout_prefill(user)
@@ -277,8 +347,11 @@ def register_public_routes(app):
             "ward": profile.get("ward", ""),
             "district": profile.get("district", ""),
             "province": profile.get("province", ""),
+            "ghn_province_id": "",
+            "ghn_district_id": "",
+            "ghn_ward_code": "",
             "notes": "",
-            "shipping_zone": cart.get("shipping_zone") or "",
+            "shipping_method": "",
             "payment_method": "cod",
             "address_id": profile.get("address_id", ""),
         }
@@ -298,15 +371,83 @@ def register_public_routes(app):
             flash(result["error"], "error")
             cart = get_cart_snapshot(user)
 
+        shipping_address = {
+            "line1": form_values.get("line1", ""),
+            "ward": form_values.get("ward", ""),
+            "district": form_values.get("district", ""),
+            "province": form_values.get("province", ""),
+            "ghn_province_id": form_values.get("ghn_province_id", ""),
+            "ghn_district_id": form_values.get("ghn_district_id", ""),
+            "ghn_ward_code": form_values.get("ghn_ward_code", ""),
+        }
+        conn = _get_db()
+        try:
+            shipping_quotes = quote_shipping_options(
+                conn,
+                cart,
+                shipping_address,
+                form_values.get("shipping_method"),
+                form_values.get("payment_method"),
+            )
+        finally:
+            conn.close()
+
         return render_template(
             "checkout.html",
             title="Thanh toán",
             description="Hoàn tất đặt hàng và chọn phương thức thanh toán.",
             cart=cart,
+            shipping_quotes=shipping_quotes,
             form_values=form_values,
             profile=profile,
             addresses=addresses,
         )
+
+    @app.route("/shipping/quotes", methods=["POST"])
+    def shipping_quotes():
+        user = _get_current_user()
+        cart = get_cart_snapshot(user)
+        if not cart["items"]:
+            return jsonify({"ok": False, "error": "Giỏ hàng trống."}), 400
+        address = {
+            "line1": request.form.get("line1", ""),
+            "ward": request.form.get("ward", ""),
+            "district": request.form.get("district", ""),
+            "province": request.form.get("province", ""),
+            "ghn_province_id": request.form.get("ghn_province_id", ""),
+            "ghn_district_id": request.form.get("ghn_district_id", ""),
+            "ghn_ward_code": request.form.get("ghn_ward_code", ""),
+        }
+        conn = _get_db()
+        try:
+            quotes = quote_shipping_options(
+                conn,
+                cart,
+                address,
+                request.form.get("shipping_method"),
+                request.form.get("payment_method"),
+            )
+        finally:
+            conn.close()
+        return jsonify({"ok": True, "quotes": quotes})
+
+    @app.route("/shipping/locations/provinces")
+    def shipping_location_provinces():
+        return jsonify({"ok": True, "items": list_shipping_provinces()})
+
+    @app.route("/shipping/locations/districts")
+    def shipping_location_districts():
+        return jsonify({
+            "ok": True,
+            "items": list_shipping_districts(request.args.get("province_id")),
+        })
+
+    @app.route("/shipping/locations/wards")
+    def shipping_location_wards():
+        return jsonify({
+            "ok": True,
+            "items": list_shipping_wards(request.args.get("district_id")),
+        })
 
     @app.route("/checkout/success")
     def checkout_success():
@@ -318,8 +459,8 @@ def register_public_routes(app):
             abort(404)
         return render_template(
             "checkout_result.html",
-            title=f"Dat hang thanh cong - {order_number}",
-            description="Don hang cua ban da duoc ghi nhan.",
+            title=f"Đặt hàng thành công - {order_number}",
+            description="Đơn hàng của bạn đã được ghi nhận.",
             order=order,
             items=items,
             is_success=True,
@@ -334,8 +475,8 @@ def register_public_routes(app):
             order, items = get_order_details(order_number)
         return render_template(
             "checkout_result.html",
-            title="Thanh toan that bai",
-            description="Giao dich khong thanh cong, vui long thu lai.",
+            title="Thanh toán thất bại",
+            description="Giao dịch không thành công, vui lòng thử lại.",
             order=order,
             items=items,
             is_success=False,
@@ -346,7 +487,7 @@ def register_public_routes(app):
         result = handle_vnpay_callback(dict(request.args), source="return")
         if result["success"]:
             return redirect(url_for("checkout_success", order_number=result["order_number"]))
-        flash("Thanh toan online khong thanh cong. Don hang da duoc cap nhat.", "error")
+        flash("Thanh toán online không thành công. Đơn hàng đã được cập nhật.", "error")
         return redirect(url_for("checkout_failure", order_number=result["order_number"]))
 
     @app.route("/payment/vnpay/ipn")
@@ -363,20 +504,83 @@ def register_public_routes(app):
             full_name = (request.form.get("full_name") or "").strip()
             phone = (request.form.get("phone") or "").strip()
             update_user_profile(user["id"], full_name, phone)
-            flash("Da cap nhat thong tin tai khoan.", "success")
+            flash("Đã cập nhật thông tin tài khoản.", "success")
             return redirect(url_for("account_profile"))
         profile = get_user_profile(user["id"])
         if profile is None:
-            flash("Khong tim thay thong tin tai khoan.", "error")
+            flash("Không tìm thấy thông tin tài khoản.", "error")
             return redirect(url_for("home"))
         addresses = list_user_addresses(user["id"])
         return render_template(
             "account_profile.html",
-            title="Tai khoan ca nhan",
-            description="Quan ly thong tin ca nhan va dia chi giao hang.",
+            title="Tài khoản cá nhân",
+            description="Quản lý thông tin cá nhân và địa chỉ giao hàng.",
             profile=profile,
             addresses=addresses,
         )
+
+    @app.route("/account/security", methods=["GET", "POST"])
+    def account_security():
+        user, redirect_response = _require_login()
+        if redirect_response:
+            return redirect_response
+
+        profile = get_security_profile(user["id"])
+        if profile is None:
+            flash("Không tìm thấy thông tin tài khoản.", "error")
+            return redirect(url_for("home"))
+
+        if request.method == "POST":
+            action = (request.form.get("action") or "").strip()
+            if action == "change_password":
+                current_password = request.form.get("current_password", "")
+                new_password = request.form.get("new_password", "")
+                confirm_password = request.form.get("confirm_password", "")
+                if not check_password_hash(profile["password_hash"], current_password):
+                    flash("Mật khẩu hiện tại không đúng.", "error")
+                elif len(new_password) < 6:
+                    flash("Mật khẩu mới phải có ít nhất 6 ký tự.", "error")
+                elif new_password != confirm_password:
+                    flash("Mật khẩu xác nhận không khớp.", "error")
+                else:
+                    update_user_password(
+                        user["id"],
+                        generate_password_hash(new_password),
+                    )
+                    flash("Đã cập nhật mật khẩu.", "success")
+                    return redirect(url_for("account_security"))
+            elif action == "resend_verification":
+                if profile["is_verified"]:
+                    flash("Email của bạn đã được xác thực.", "success")
+                else:
+                    sent = _send_verification_for_user(user["id"], profile["email"])
+                    if sent:
+                        flash("Đã gửi email xác thực mới.", "success")
+                    else:
+                        flash("Chưa gửi được email xác thực. Vui lòng kiểm tra cấu hình SMTP.", "error")
+                return redirect(url_for("account_security"))
+
+        profile = get_security_profile(user["id"])
+        return render_template(
+            "account_security.html",
+            title="Bảo mật tài khoản",
+            description="Quản lý mật khẩu và xác thực email.",
+            profile=profile,
+        )
+
+    @app.route("/verify-email/<token>")
+    def verify_email(token):
+        row = consume_account_token(token, TOKEN_PURPOSE_EMAIL_VERIFY)
+        if row is None:
+            flash("Liên kết xác thực không hợp lệ hoặc đã hết hạn.", "error")
+            if _get_current_user():
+                return redirect(url_for("account_security"))
+            return redirect(url_for("login"))
+        mark_user_email_verified(row["user_id"])
+        flash("Email đã được xác thực thành công.", "success")
+        if session.get("user_id") == row["user_id"]:
+            return redirect(url_for("account_security"))
+        return redirect(url_for("login"))
 
     @app.route("/account/addresses/add", methods=["POST"])
     def account_address_add():
@@ -422,8 +626,8 @@ def register_public_routes(app):
         orders = list_user_orders(user["id"])
         return render_template(
             "account_orders.html",
-            title="Lich su don hang",
-            description="Theo doi trang thai don hang va ma van don.",
+            title="Lịch sử đơn hàng",
+            description="Theo dõi trạng thái đơn hàng và mã vận đơn.",
             orders=orders,
         )
 
@@ -437,8 +641,8 @@ def register_public_routes(app):
             abort(404)
         return render_template(
             "account_order_detail.html",
-            title=f"Don hang {order_number}",
-            description="Chi tiet don hang va lich su trang thai.",
+            title=f"Đơn hàng {order_number}",
+            description="Chi tiết đơn hàng và lịch sử trạng thái.",
             order=order,
             items=items,
             events=events,
@@ -456,15 +660,15 @@ def register_public_routes(app):
             order_number = (request.form.get("order_number") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
             if not order_number or not email:
-                flash("Vui long nhap ma don va email dat hang.", "error")
+                flash("Vui lòng nhập mã đơn và email đặt hàng.", "error")
             else:
                 order, items, events = get_order_by_number_and_email(order_number, email)
                 if order is None:
-                    flash("Khong tim thay don hang phu hop.", "error")
+                    flash("Không tìm thấy đơn hàng phù hợp.", "error")
         return render_template(
             "order_tracking.html",
-            title="Theo doi don hang",
-            description="Tra cuu don hang bang ma don va email.",
+            title="Theo dõi đơn hàng",
+            description="Tra cứu đơn hàng bằng mã đơn và email.",
             order=order,
             items=items,
             events=events,
@@ -483,10 +687,10 @@ def register_public_routes(app):
         qr_token = (request.args.get("token") or "").strip() if from_qr else ""
         return render_template(
             "character.html",
-            title=f"{character['name']} - Di san Viet",
+            title=f"{character['name']} - Di sản Việt",
             description=character.get(
                 "seo_description",
-                character.get("description", "Di san Viet."),
+                character.get("description", "Di sản Việt."),
             ),
             character=character,
             characters=characters,
@@ -511,6 +715,50 @@ def register_public_routes(app):
             "contact.html",
             title="Liên hệ – Nếp Thanh",
             description="Liên hệ với chúng tôi để hợp tác hoặc hỗ trợ mua hàng.",
+        )
+
+    @app.route("/forgot-password", methods=["GET", "POST"])
+    def forgot_password():
+        sent = False
+        if request.method == "POST":
+            email = (request.form.get("email") or "").strip().lower()
+            user = _get_user_by_email(email) if email else None
+            if user and not user["is_blocked"]:
+                _send_password_reset_for_user(user)
+            sent = True
+        return render_template(
+            "forgot_password.html",
+            title="Quên mật khẩu",
+            description="Nhận liên kết đặt lại mật khẩu qua email.",
+            sent=sent,
+        )
+
+    @app.route("/reset-password/<token>", methods=["GET", "POST"])
+    def reset_password(token):
+        error = None
+        if request.method == "POST":
+            password = request.form.get("password", "")
+            confirm_password = request.form.get("confirm_password", "")
+            if len(password) < 6:
+                error = "Mật khẩu mới phải có ít nhất 6 ký tự."
+            elif password != confirm_password:
+                error = "Mật khẩu xác nhận không khớp."
+            else:
+                row = consume_account_token(token, TOKEN_PURPOSE_PASSWORD_RESET)
+                if row is None:
+                    error = "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."
+                else:
+                    update_user_password(row["user_id"], generate_password_hash(password))
+                    flash("Đã cập nhật mật khẩu. Vui lòng đăng nhập lại.", "success")
+                    if session.get("user_id") == row["user_id"]:
+                        session.pop("user_id", None)
+                    return redirect(url_for("login"))
+        return render_template(
+            "reset_password.html",
+            title="Đặt lại mật khẩu",
+            description="Tạo mật khẩu mới cho tài khoản.",
+            token=token,
+            error=error,
         )
 
     @app.route("/signup", methods=["GET", "POST"])
@@ -540,6 +788,13 @@ def register_public_routes(app):
                 user_id = _create_user(email, generate_password_hash(password))
                 session["user_id"] = user_id
                 merge_guest_cart_into_user(user_id)
+                if _send_verification_for_user(user_id, email):
+                    flash("Đã tạo tài khoản. Vui lòng kiểm tra email để xác thực.", "success")
+                else:
+                    flash(
+                        "Đã tạo tài khoản. Chưa gửi được email xác thực, bạn có thể gửi lại trong Bảo mật tài khoản.",
+                        "warning",
+                    )
                 return redirect(next_url or url_for("home"))
         return render_template(
             "signup.html",

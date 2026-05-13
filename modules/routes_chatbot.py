@@ -1,6 +1,5 @@
-"""Routes blueprint for the AI Shop Assistant chatbot."""
-
 import json
+import threading
 import uuid
 from datetime import datetime
 
@@ -15,6 +14,7 @@ from modules.chatbot import (
     _get_draft,
 )
 from modules.db import _get_db
+from modules.notifications import send_new_order_alert_to_owner
 from modules.telegram_notify import send_order_notification
 from modules.utils import _build_order_number
 
@@ -30,7 +30,32 @@ def register_chatbot_routes(app):
 # ---------------------------------------------------------------------------
 
 
+def _alert_owner_for_bot_order(order_data: dict, order_id: int):
+    """Lấy chi tiết đơn từ DB rồi gửi email thông báo ch&#7911; shop (bất đồng bộ)."""
+    def _send():
+        try:
+            conn = _get_db()
+            order_row = conn.execute(
+                "SELECT * FROM orders WHERE id = ?", (order_id,)
+            ).fetchone()
+            item_rows = conn.execute(
+                "SELECT * FROM order_items WHERE order_id = ? ORDER BY id",
+                (order_id,),
+            ).fetchall()
+            conn.close()
+            if order_row is None:
+                return
+            order_dict = {k: order_row[k] for k in order_row.keys()}
+            items_list = [{k: r[k] for k in r.keys()} for r in item_rows]
+            send_new_order_alert_to_owner(order_dict, items_list)
+        except Exception:
+            pass  # không để lỗi email ảnh hưởng đến API
+
+    threading.Thread(target=_send, daemon=True).start()
+
+
 def _create_bot_order(draft_data, session_id):
+
     """Create an order record from bot-collected data.  Returns order dict."""
     conn = _get_db()
     now = datetime.utcnow().isoformat()
@@ -139,8 +164,10 @@ def api_chat():
                 f"Bạn có thể theo dõi đơn tại mục **Theo dõi đơn hàng** trên website.\n\n"
                 f"Cảm ơn bạn đã mua hàng tại Nếp Thanh! 🎉"
             )
-            # Send Telegram notification
+            # Gửi Telegram (nếu có token)
             send_order_notification(order)
+            # Gửi email thông báo chủ shop (bất đồng bộ)
+            _alert_owner_for_bot_order(order, order_id)
         except Exception as e:
             result["reply"] = (
                 "Xin lỗi, mình gặp lỗi khi tạo đơn hàng. "

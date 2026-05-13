@@ -895,6 +895,27 @@ main>.container {
     color: var(--vn-red);
 }
 
+.price .old-price,
+.product-detail-price .old-price,
+.cart-item .old-price {
+    color: var(--vn-text-light);
+    display: inline-block;
+    font-size: 0.85em;
+    font-weight: 500;
+    margin-right: 0.35rem;
+    text-decoration-line: line-through;
+    text-decoration-thickness: 2px;
+    text-decoration-color: currentColor;
+}
+
+.sale-label {
+    display: block;
+    color: var(--vn-gold-dark);
+    font-size: 0.75rem;
+    font-weight: 700;
+    margin-top: 0.15rem;
+}
+
 /* ============================================================
    PAGE HEADER (for inner pages)
    ============================================================ */
@@ -1646,7 +1667,7 @@ body.auth-modal-open .auth-modal-panel .auth-card {
    ============================================================ */
 .checkout-layout {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 340px;
+    grid-template-columns: minmax(0, 0.74fr) minmax(560px, 0.52fr);
     gap: 1.5rem;
     align-items: start;
 }
@@ -1660,7 +1681,23 @@ body.auth-modal-open .auth-modal-panel .auth-card {
     display: grid;
     gap: 1rem;
     position: sticky;
-    top: 5rem;
+    top: 6.25rem;
+}
+
+.checkout-summary .cart-totals p {
+    align-items: flex-start;
+    gap: 1rem;
+}
+
+.checkout-summary .cart-totals p span {
+    min-width: 0;
+}
+
+.checkout-summary .cart-totals p strong {
+    display: inline-block;
+    flex-shrink: 0;
+    min-width: max-content;
+    white-space: nowrap;
 }
 
 .checkout-block {
@@ -1688,6 +1725,11 @@ body.auth-modal-open .auth-modal-panel .auth-card {
     gap: 0.35rem;
     font-size: 0.92rem;
     font-weight: 500;
+}
+
+.required-mark {
+    color: var(--vn-red) !important;
+    font-weight: 800;
 }
 
 .checkout-grid input,
@@ -1719,6 +1761,50 @@ body.auth-modal-open .auth-modal-panel .auth-card {
     display: grid;
     gap: 0.5rem;
     margin-bottom: 0.8rem;
+}
+
+.shipping-rate-list {
+    display: grid;
+    gap: 0.6rem;
+}
+
+.shipping-rate-option {
+    align-items: center;
+    border: 1.5px solid var(--vn-cream-dark);
+    border-radius: 10px;
+    cursor: pointer;
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: auto 1fr auto;
+    padding: 0.8rem 0.9rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.shipping-rate-option:hover {
+    border-color: var(--vn-gold);
+}
+
+.shipping-rate-option:has(input:checked) {
+    border-color: var(--vn-red);
+    box-shadow: 0 0 0 1px rgba(178, 34, 34, 0.12);
+}
+
+.shipping-rate-option input {
+    accent-color: var(--vn-red);
+}
+
+.shipping-rate-main {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.shipping-rate-main small {
+    color: var(--vn-text-light);
+}
+
+.shipping-rate-fee {
+    color: var(--vn-red);
+    white-space: nowrap;
 }
 
 .payment-option {
@@ -1814,6 +1900,25 @@ body.auth-modal-open .auth-modal-panel .auth-card {
     font-size: 0.8rem;
     padding: 0.15rem 0.6rem;
     font-weight: 600;
+}
+
+.status-pill-success {
+    background: #e8f5ee;
+    border-color: #b7e0c9;
+    color: #1f7a4d;
+}
+
+.account-security-link {
+    margin-top: 1rem;
+}
+
+.auth-page {
+    justify-content: center;
+}
+
+.auth-page-card {
+    max-width: 560px;
+    width: 100%;
 }
 
 .check-row {

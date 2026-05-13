@@ -49,11 +49,11 @@ def _build_scan_filters(batch_code=None, character_id=None, date_from=None, date
 
 def create_qr_batch(variant_id, character_id, batch_code, quantity):
     if not variant_id or not character_id:
-        raise ValueError("variant_id and character_id are required.")
+        raise ValueError("Vui lòng chọn biến thể và nhân vật.")
     if not batch_code:
-        raise ValueError("batch_code is required.")
+        raise ValueError("Vui lòng nhập batch code.")
     if quantity <= 0:
-        raise ValueError("quantity must be greater than 0.")
+        raise ValueError("Số lượng phải lớn hơn 0.")
 
     conn = _get_db()
     variant_row = conn.execute(
@@ -66,7 +66,7 @@ def create_qr_batch(variant_id, character_id, batch_code, quantity):
     ).fetchone()
     if variant_row is None or character_row is None:
         conn.close()
-        raise ValueError("variant_id or character_id does not exist.")
+        raise ValueError("Biến thể hoặc nhân vật không tồn tại.")
 
     serial_start = conn.execute(
         "SELECT COUNT(*) AS count FROM qr_tags WHERE batch_code = ?",
@@ -101,7 +101,7 @@ def create_qr_batch(variant_id, character_id, batch_code, quantity):
                 except INTEGRITY_ERRORS:
                     continue
             if not token:
-                raise RuntimeError("Unable to generate unique QR token.")
+                raise RuntimeError("Không thể tạo QR token duy nhất.")
             created.append({"token": token, "serial_no": serial_no})
         conn.commit()
     finally:

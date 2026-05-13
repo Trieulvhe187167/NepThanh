@@ -55,7 +55,7 @@ def build_vnpay_payment_url(order_number, amount_vnd, return_url, ip_addr):
         "vnp_CurrCode": "VND",
         "vnp_IpAddr": ip_addr or "127.0.0.1",
         "vnp_Locale": "vn",
-        "vnp_OrderInfo": f"Thanh toan don hang {order_number}",
+        "vnp_OrderInfo": f"Thanh toán đơn hàng {order_number}",
         "vnp_OrderType": "other",
         "vnp_ReturnUrl": return_url,
         "vnp_TxnRef": order_number,

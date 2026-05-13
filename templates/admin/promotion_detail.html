@@ -1,0 +1,74 @@
+{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+
+<div class="admin-actions" style="justify-content: flex-start; margin-bottom: 1rem;">
+    <a class="btn btn-secondary" href="{{ url_for('admin_promotions') }}">Quay lại flash sale</a>
+</div>
+
+<div class="split">
+    <div class="admin-card">
+        <h3>Chi tiết chương trình</h3>
+        <p><strong>Tên:</strong> {{ promotion.name }}</p>
+        <p><strong>Loại:</strong> {{ promotion.promo_type }}</p>
+        <p><strong>Kiểu giảm:</strong> {{ promotion.discount_type }}</p>
+        <p><strong>Giá trị:</strong> {{ promotion.value }}</p>
+        <p><strong>Danh mục:</strong> {{ promotion.category_name or '-' }}</p>
+        <p><strong>Trạng thái:</strong> {% if promotion.is_active %}Đang bật{% else %}Đang tắt{% endif %}</p>
+        <p><strong>Bắt đầu:</strong> {{ promotion.starts_at or '-' }}</p>
+        <p><strong>Kết thúc:</strong> {{ promotion.ends_at or '-' }}</p>
+        <p><strong>Tạo lúc:</strong> {{ promotion.created_at }}</p>
+    </div>
+
+    <div class="admin-card">
+        <h3>Chỉnh sửa</h3>
+        <form method="post" class="form-grid">
+            <div class="form-group">
+                <label>Tên chương trình</label>
+                <input name="name" value="{{ promotion.name }}" required />
+            </div>
+            <div class="form-group">
+                <label>Loại</label>
+                <select name="promo_type">
+                    <option value="flash" {% if promotion.promo_type == 'flash' %}selected{% endif %}>Flash sale</option>
+                    <option value="category" {% if promotion.promo_type == 'category' %}selected{% endif %}>Theo danh mục</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Kiểu giảm</label>
+                <select name="discount_type">
+                    <option value="percent" {% if promotion.discount_type == 'percent' %}selected{% endif %}>%</option>
+                    <option value="fixed" {% if promotion.discount_type == 'fixed' %}selected{% endif %}>Số tiền</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Giá trị</label>
+                <input name="value" type="number" value="{{ promotion.value or 0 }}" />
+            </div>
+            <div class="form-group">
+                <label>Danh mục</label>
+                <select name="category_id">
+                    <option value="">--</option>
+                    {% for cat in categories %}
+                    <option value="{{ cat.id }}" {% if promotion.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Bắt đầu</label>
+                <input name="starts_at" type="datetime-local" value="{{ promotion.starts_at[:16] if promotion.starts_at else '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Kết thúc</label>
+                <input name="ends_at" type="datetime-local" value="{{ promotion.ends_at[:16] if promotion.ends_at else '' }}" />
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="is_active" {% if promotion.is_active %}checked{% endif %} /> Kích hoạt</label>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

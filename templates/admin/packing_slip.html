@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
     <meta charset="utf-8" />
@@ -15,7 +15,7 @@
     <h1>Phiếu giao hàng {{ order.order_number }}</h1>
     <p><strong>Người nhận:</strong> {{ order.recipient_name }}</p>
     <p><strong>SĐT:</strong> {{ order.phone }}</p>
-    <p><strong>Địa chỉ:</strong> {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+    <p><strong>Địa chỉ:</strong> {{ [order.line1, order.line2, order.ward, order.district, order.province] | select | join(', ') }}</p>
 
     <table>
         <thead>

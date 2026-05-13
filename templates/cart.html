@@ -18,7 +18,16 @@
                 <div class="cart-item-body">
                     <h3><a href="{{ url_for('product_detail', slug=item.product_slug) }}">{{ item.product_name }}</a></h3>
                     <p>Size {{ item.size }}{% if item.color %} · {{ item.color }}{% endif %}</p>
-                    <p class="price">Đơn giá: {{ "{:,}".format(item.unit_price) }} ₫</p>
+                    <p class="price">
+                        Đơn giá:
+                        {% if item.has_promotion %}
+                        <del class="old-price">{{ "{:,}".format(item.regular_unit_price) }} ₫</del>
+                        {% endif %}
+                        {{ "{:,}".format(item.unit_price) }} ₫
+                        {% if item.has_promotion and item.promotion_name %}
+                        <small class="sale-label">{{ item.promotion_name }}</small>
+                        {% endif %}
+                    </p>
                     <div class="cart-actions">
                         <form method="post" action="{{ url_for('cart_update', variant_id=item.variant_id) }}" class="cart-qty-form modern-qty-form">
                             <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}" />
@@ -55,27 +64,15 @@
                 {% else %}
                 <form method="post" action="{{ url_for('cart_coupon') }}" class="coupon-form">
                     <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}" />
-                    <input type="text" name="coupon_code" placeholder="Nhap voucher" />
+                    <input type="text" name="coupon_code" placeholder="Nhập voucher" />
                     <button type="submit" class="btn-secondary">Áp dụng</button>
                 </form>
                 {% endif %}
             </div>
 
             <div class="cart-block">
-                <h2>Ước tính vận chuyển</h2>
-                <form method="post" action="{{ url_for('cart_shipping') }}" class="shipping-form">
-                    <input type="hidden" name="next" value="{{ request.full_path.rstrip('?') }}" />
-                    <select name="shipping_zone">
-                        <option value="">Chọn khu vực</option>
-                        {% for option in cart.shipping_options %}
-                        <option value="{{ option.value }}" {% if option.value == cart.shipping_zone %}selected{% endif %}>{{ option.label }}</option>
-                        {% endfor %}
-                    </select>
-                    <button type="submit" class="btn-secondary">Cập nhật</button>
-                </form>
-                {% if cart.shipping_estimated %}
-                <p class="shipping-hint">{{ cart.shipping_label }}</p>
-                {% endif %}
+                <h2>Vận chuyển</h2>
+                <p class="shipping-hint">Phí vận chuyển sẽ được tính ở bước thanh toán theo địa chỉ nhận hàng từ kho Hà Nội.</p>
             </div>
 
             <div class="cart-block cart-totals">

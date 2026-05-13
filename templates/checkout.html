@@ -1,10 +1,10 @@
-{% extends "base.html" %}
+﻿{% extends "base.html" %}
 
 {% block content %}
 <section class="checkout-page">
     <h1>Thanh toán</h1>
     <div class="checkout-layout">
-        <form method="post" class="checkout-form">
+        <form method="post" class="checkout-form" id="checkout_form">
             <div class="checkout-block">
                 <h2>Thông tin nhận hàng</h2>
                 {% if current_user and addresses %}
@@ -24,7 +24,7 @@
                             data-district="{{ (address.district or '')|e }}"
                             data-province="{{ (address.province or '')|e }}"
                         >
-                            {{ address.recipient_name or 'Nguoi nhan' }} - {{ address.line1 }}, {{ address.district }}, {{ address.province }}{% if address.is_default %} (mac dinh){% endif %}
+                            {{ address.recipient_name or 'Người nhận' }} - {{ [address.line1, address.line2, address.ward, address.district, address.province] | select | join(', ') }}{% if address.is_default %} (mặc định){% endif %}
                         </option>
                         {% endfor %}
                     </select>
@@ -35,7 +35,7 @@
                 {% endif %}
                 <div class="checkout-grid">
                     <label>
-                        Tên người nhận
+                        <span>Tên người nhận <span class="required-mark" style="color: #B22222;">*</span></span>
                         <input id="checkout_recipient_name" type="text" name="recipient_name" value="{{ form_values.recipient_name }}" required />
                     </label>
                     <label>
@@ -43,11 +43,8 @@
                         <input type="email" name="email" value="{{ form_values.email }}" required />
                     </label>
                     <label>
-                        Số điện thoại
+                        <span>Số điện thoại <span class="required-mark" style="color: #B22222;">*</span></span>
                         <input id="checkout_phone" type="text" name="phone" value="{{ form_values.phone }}" required />
-                        {% if profile.phone %}
-                        <small class="field-hint">Đã lấy từ hồ sơ, bạn có thể chỉnh sửa trước khi đặt hàng.</small>
-                        {% endif %}
                     </label>
                     <label>
                         Địa chỉ (số nhà, đường)
@@ -58,33 +55,49 @@
                         <input id="checkout_line2" type="text" name="line2" value="{{ form_values.line2 }}" />
                     </label>
                     <label>
-                        Phường / xã
-                        <input id="checkout_ward" type="text" name="ward" value="{{ form_values.ward }}" />
+                        <span>Tỉnh / thành phố <span class="required-mark" style="color: #B22222;">*</span></span>
+                        <input id="checkout_province" type="text" name="province" value="{{ form_values.province }}" list="province_options" autocomplete="off" required />
+                        <input id="checkout_ghn_province_id" type="hidden" name="ghn_province_id" value="{{ form_values.ghn_province_id }}" />
                     </label>
                     <label>
-                        Quận / huyện
-                        <input id="checkout_district" type="text" name="district" value="{{ form_values.district }}" required />
+                        <span>Quận / huyện <span class="required-mark" style="color: #B22222;">*</span></span>
+                        <input id="checkout_district" type="text" name="district" value="{{ form_values.district }}" list="district_options" autocomplete="off" required />
+                        <input id="checkout_ghn_district_id" type="hidden" name="ghn_district_id" value="{{ form_values.ghn_district_id }}" />
                     </label>
                     <label>
-                        Tỉnh / thành phố
-                        <input id="checkout_province" type="text" name="province" value="{{ form_values.province }}" required />
+                        <span>Phường / xã <span class="required-mark" style="color: #B22222;">*</span></span>
+                        <input id="checkout_ward" type="text" name="ward" value="{{ form_values.ward }}" list="ward_options" autocomplete="off" required />
+                        <input id="checkout_ghn_ward_code" type="hidden" name="ghn_ward_code" value="{{ form_values.ghn_ward_code }}" />
                     </label>
                 </div>
+                <datalist id="province_options"></datalist>
+                <datalist id="district_options"></datalist>
+                <datalist id="ward_options"></datalist>
             </div>
 
             <div class="checkout-block">
                 <h2>Vận chuyển</h2>
-                <label>
-                    Phương thức vận chuyển
-                    <select name="shipping_zone" required>
-                        <option value="">Chọn khu vực</option>
-                        {% for option in cart.shipping_options %}
-                        <option value="{{ option.value }}" {% if form_values.shipping_zone == option.value %}selected{% endif %}>
-                            {{ option.label }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </label>
+                <div class="shipping-rate-list" id="shipping_rate_list">
+                    {% if not shipping_quotes %}
+                    <p class="field-hint">Nhập địa chỉ nhận hàng để tính phí vận chuyển.</p>
+                    {% endif %}
+                    {% for quote in shipping_quotes %}
+                    <label class="shipping-rate-option">
+                        <input
+                            type="radio"
+                            name="shipping_method"
+                            value="{{ quote.id }}"
+                            data-fee="{{ quote.fee }}"
+                            {% if form_values.shipping_method == quote.id or (not form_values.shipping_method and loop.first) %}checked{% endif %}
+                            required
+                        />
+                        <span class="shipping-rate-main">
+                            <strong>{{ quote.carrier_label }} - {{ quote.service_label }}</strong>
+                        </span>
+                        <strong class="shipping-rate-fee">{{ "{:,}".format(quote.fee) }} ₫</strong>
+                    </label>
+                    {% endfor %}
+                </div>
             </div>
 
             <div class="checkout-block">
@@ -111,20 +124,22 @@
                 </label>
             </div>
 
-            <button type="submit" class="btn-secondary btn-block">Đặt hàng</button>
         </form>
 
         <aside class="checkout-summary">
             <div class="cart-block cart-totals">
                 <h2>Đơn hàng của bạn</h2>
                 {% for item in cart["items"] %}
-                <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.line_total) }} ₫</strong></p>
+                <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.line_total) }}&nbsp;₫</strong></p>
                 {% endfor %}
-                <p><span>Tạm tính</span><strong>{{ "{:,}".format(cart.subtotal) }} ₫</strong></p>
-                <p><span>Giảm giá</span><strong>- {{ "{:,}".format(cart.discount_amount) }} ₫</strong></p>
-                <p><span>Vận chuyển</span><strong>{{ "{:,}".format(cart.shipping_fee) }} ₫</strong></p>
-                <p class="total"><span>Tổng</span><strong>{{ "{:,}".format(cart.total) }} ₫</strong></p>
+                <p><span>Tạm tính</span><strong>{{ "{:,}".format(cart.subtotal) }}&nbsp;₫</strong></p>
+                <p><span>Giảm giá</span><strong>- {{ "{:,}".format(cart.discount_amount) }}&nbsp;₫</strong></p>
+                {% set initial_shipping_fee = (shipping_quotes[0].fee if shipping_quotes else cart.shipping_fee) %}
+                {% set initial_total = cart.subtotal - cart.discount_amount + initial_shipping_fee %}
+                <p><span>Vận chuyển</span><strong id="checkout_shipping_fee">{{ "{:,}".format(initial_shipping_fee) }}&nbsp;₫</strong></p>
+                <p class="total"><span>Tổng</span><strong id="checkout_total">{{ "{:,}".format(initial_total) }}&nbsp;₫</strong></p>
             </div>
+            <button type="submit" form="checkout_form" class="btn-secondary btn-block">Đặt hàng</button>
             <a href="{{ url_for('cart_view') }}" class="btn-outline">Quay lại giỏ hàng</a>
         </aside>
     </div>
@@ -132,7 +147,6 @@
 <script>
 (function () {
     var selector = document.getElementById("checkout_address_id");
-    if (!selector) return;
     var fields = {
         recipient_name: document.getElementById("checkout_recipient_name"),
         phone: document.getElementById("checkout_phone"),
@@ -142,17 +156,243 @@
         district: document.getElementById("checkout_district"),
         province: document.getElementById("checkout_province")
     };
+    var hiddenLocation = {
+        province_id: document.getElementById("checkout_ghn_province_id"),
+        district_id: document.getElementById("checkout_ghn_district_id"),
+        ward_code: document.getElementById("checkout_ghn_ward_code")
+    };
+    var locationLists = {
+        provinces: [],
+        districts: [],
+        wards: []
+    };
+    var datalists = {
+        provinces: document.getElementById("province_options"),
+        districts: document.getElementById("district_options"),
+        wards: document.getElementById("ward_options")
+    };
+    var rateList = document.getElementById("shipping_rate_list");
+    var shippingFeeEl = document.getElementById("checkout_shipping_fee");
+    var totalEl = document.getElementById("checkout_total");
+    var subtotal = {{ cart.subtotal|int }};
+    var discount = {{ cart.discount_amount|int }};
 
-    selector.addEventListener("change", function () {
-        var selected = selector.options[selector.selectedIndex];
-        if (!selected || !selected.value) return;
-        Object.keys(fields).forEach(function (key) {
-            var field = fields[key];
-            if (!field) return;
-            var value = selected.getAttribute("data-" + key.replace("_", "-"));
-            if (value) field.value = value;
+    function formatMoney(value) {
+        return Number(value || 0).toLocaleString("vi-VN") + "\u00a0₫";
+    }
+
+    function selectedPaymentMethod() {
+        var selected = document.querySelector("input[name='payment_method']:checked");
+        return selected ? selected.value : "cod";
+    }
+
+    function normalizeText(value) {
+        return (value || "")
+            .toString()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, " ");
+    }
+
+    function renderDatalist(element, items, idKey) {
+        if (!element) return;
+        element.innerHTML = items.map(function (item) {
+            var option = document.createElement("option");
+            option.value = item.name || "";
+            option.setAttribute("data-id", item[idKey] || "");
+            return option.outerHTML;
+        }).join("");
+    }
+
+    function findLocation(items, name) {
+        var wanted = normalizeText(name);
+        if (!wanted) return null;
+        return items.find(function (item) {
+            return normalizeText(item.name) === wanted;
+        }) || null;
+    }
+
+    function fetchLocation(url) {
+        return fetch(url, {headers: {"X-Requested-With": "XMLHttpRequest"}})
+            .then(function (response) { return response.json(); })
+            .then(function (payload) { return payload && payload.ok ? payload.items || [] : []; })
+            .catch(function () { return []; });
+    }
+
+    function loadProvinces() {
+        return fetchLocation("{{ url_for('shipping_location_provinces') }}").then(function (items) {
+            locationLists.provinces = items;
+            renderDatalist(datalists.provinces, items, "id");
+            syncProvince(false);
         });
+    }
+
+    function loadDistricts(provinceId) {
+        if (!provinceId) {
+            locationLists.districts = [];
+            renderDatalist(datalists.districts, [], "id");
+            return Promise.resolve([]);
+        }
+        return fetchLocation("{{ url_for('shipping_location_districts') }}?province_id=" + encodeURIComponent(provinceId)).then(function (items) {
+            locationLists.districts = items;
+            renderDatalist(datalists.districts, items, "id");
+            syncDistrict(false);
+            return items;
+        });
+    }
+
+    function loadWards(districtId) {
+        if (!districtId) {
+            locationLists.wards = [];
+            renderDatalist(datalists.wards, [], "code");
+            return Promise.resolve([]);
+        }
+        return fetchLocation("{{ url_for('shipping_location_wards') }}?district_id=" + encodeURIComponent(districtId)).then(function (items) {
+            locationLists.wards = items;
+            renderDatalist(datalists.wards, items, "code");
+            syncWard(false);
+            return items;
+        });
+    }
+
+    function syncProvince(clearChildren) {
+        var selected = findLocation(locationLists.provinces, fields.province ? fields.province.value : "");
+        if (hiddenLocation.province_id) hiddenLocation.province_id.value = selected ? selected.id : "";
+        if (clearChildren) {
+            if (fields.district) fields.district.value = "";
+            if (fields.ward) fields.ward.value = "";
+            if (hiddenLocation.district_id) hiddenLocation.district_id.value = "";
+            if (hiddenLocation.ward_code) hiddenLocation.ward_code.value = "";
+            locationLists.wards = [];
+            renderDatalist(datalists.wards, [], "code");
+        }
+        return selected ? loadDistricts(selected.id) : Promise.resolve([]);
+    }
+
+    function syncDistrict(clearChildren) {
+        var selected = findLocation(locationLists.districts, fields.district ? fields.district.value : "");
+        if (hiddenLocation.district_id) hiddenLocation.district_id.value = selected ? selected.id : "";
+        if (clearChildren) {
+            if (fields.ward) fields.ward.value = "";
+            if (hiddenLocation.ward_code) hiddenLocation.ward_code.value = "";
+        }
+        return selected ? loadWards(selected.id) : Promise.resolve([]);
+    }
+
+    function syncWard() {
+        var selected = findLocation(locationLists.wards, fields.ward ? fields.ward.value : "");
+        if (hiddenLocation.ward_code) hiddenLocation.ward_code.value = selected ? selected.code : "";
+    }
+
+    function updateTotals() {
+        var selected = document.querySelector("input[name='shipping_method']:checked");
+        var fee = selected ? parseInt(selected.getAttribute("data-fee") || "0", 10) : 0;
+        if (shippingFeeEl) shippingFeeEl.textContent = formatMoney(fee);
+        if (totalEl) totalEl.textContent = formatMoney(Math.max(subtotal - discount + fee, 0));
+    }
+
+    function renderQuotes(quotes) {
+        if (!rateList) return;
+        if (!quotes || !quotes.length) {
+            rateList.innerHTML = '<p class="field-hint">Chưa tính được phí cho địa chỉ này. Vui lòng kiểm tra lại tỉnh/thành, quận/huyện.</p>';
+            updateTotals();
+            return;
+        }
+        rateList.innerHTML = quotes.map(function (quote, index) {
+            var checked = index === 0 ? " checked" : "";
+            return '<label class="shipping-rate-option">' +
+                '<input type="radio" name="shipping_method" value="' + quote.id + '" data-fee="' + quote.fee + '"' + checked + ' required />' +
+                '<span class="shipping-rate-main"><strong>' + quote.carrier_label + ' - ' + quote.service_label + '</strong></span>' +
+                '<strong class="shipping-rate-fee">' + formatMoney(quote.fee) + '</strong>' +
+                '</label>';
+        }).join("");
+        updateTotals();
+    }
+
+    function refreshQuotes() {
+        if (!rateList || !fields.district || !fields.province) return;
+        if (!fields.district.value.trim() || !fields.province.value.trim()) return;
+        var formData = new FormData();
+        ["line1", "ward", "district", "province"].forEach(function (key) {
+            formData.append(key, fields[key] ? fields[key].value : "");
+        });
+        formData.append("ghn_province_id", hiddenLocation.province_id ? hiddenLocation.province_id.value : "");
+        formData.append("ghn_district_id", hiddenLocation.district_id ? hiddenLocation.district_id.value : "");
+        formData.append("ghn_ward_code", hiddenLocation.ward_code ? hiddenLocation.ward_code.value : "");
+        formData.append("payment_method", selectedPaymentMethod());
+        fetch("{{ url_for('shipping_quotes') }}", {
+            method: "POST",
+            body: formData,
+            headers: {"X-Requested-With": "XMLHttpRequest"}
+        })
+            .then(function (response) { return response.json(); })
+            .then(function (payload) {
+                if (payload && payload.ok) renderQuotes(payload.quotes);
+            })
+            .catch(function () {});
+    }
+
+    if (selector) {
+        selector.addEventListener("change", function () {
+            var selected = selector.options[selector.selectedIndex];
+            if (!selected || !selected.value) return;
+            Object.keys(fields).forEach(function (key) {
+                var field = fields[key];
+                if (!field) return;
+                var value = selected.getAttribute("data-" + key.replace("_", "-"));
+                if (value) field.value = value;
+            });
+            if (hiddenLocation.province_id) hiddenLocation.province_id.value = "";
+            if (hiddenLocation.district_id) hiddenLocation.district_id.value = "";
+            if (hiddenLocation.ward_code) hiddenLocation.ward_code.value = "";
+            syncProvince(false).then(function () {
+                return syncDistrict(false);
+            }).then(function () {
+                syncWard();
+                refreshQuotes();
+            });
+        });
+    }
+
+    if (fields.province) {
+        fields.province.addEventListener("change", function () {
+            syncProvince(true).then(refreshQuotes);
+        });
+        fields.province.addEventListener("input", function () {
+            if (hiddenLocation.province_id) hiddenLocation.province_id.value = "";
+        });
+    }
+    if (fields.district) {
+        fields.district.addEventListener("change", function () {
+            syncDistrict(true).then(refreshQuotes);
+        });
+        fields.district.addEventListener("input", function () {
+            if (hiddenLocation.district_id) hiddenLocation.district_id.value = "";
+        });
+    }
+    if (fields.ward) {
+        fields.ward.addEventListener("change", function () {
+            syncWard();
+            refreshQuotes();
+        });
+        fields.ward.addEventListener("input", function () {
+            if (hiddenLocation.ward_code) hiddenLocation.ward_code.value = "";
+        });
+    }
+
+    ["line1"].forEach(function (key) {
+        if (!fields[key]) return;
+        fields[key].addEventListener("change", refreshQuotes);
     });
+    document.addEventListener("change", function (event) {
+        if (event.target && event.target.name === "shipping_method") updateTotals();
+        if (event.target && event.target.name === "payment_method") refreshQuotes();
+    });
+    loadProvinces();
+    updateTotals();
 })();
 </script>
 {% endblock %}
+

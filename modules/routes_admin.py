@@ -22,7 +22,13 @@ from modules.config import (
     REVENUE_STATUSES,
     ROLE_PERMISSIONS,
 )
-from modules.checkout import send_order_status_update
+from modules.checkout import (
+    _ORDER_CANCEL_STATUSES,
+    _deduct_restored_stock_for_order,
+    _restore_stock_for_order,
+    send_order_status_update,
+)
+from modules.data_access import invalidate_content_cache
 from modules.db import INTEGRITY_ERRORS, _get_db, _get_setting, _set_setting
 from modules.qr_service import (
     create_qr_batch,
@@ -838,6 +844,26 @@ def register_admin_routes(app):
             if not items:
                 error = "Vui lòng chọn ít nhất một sản phẩm."
             else:
+                stock_errors = []
+                requested_qty_by_variant = {}
+                for item in items:
+                    variant = item["variant"]
+                    variant_id = variant["id"]
+                    requested_qty_by_variant[variant_id] = (
+                        requested_qty_by_variant.get(variant_id, 0) + item["qty"]
+                    )
+                variants_by_id = {item["variant"]["id"]: item["variant"] for item in items}
+                for variant_id, requested_qty in requested_qty_by_variant.items():
+                    variant = variants_by_id[variant_id]
+                    stock_qty = max(_parse_int(variant["stock_qty"], 0), 0)
+                    if requested_qty > stock_qty:
+                        stock_errors.append(
+                            f"{variant['product_name']} - {variant['size']}/{variant['color']} "
+                            f"({variant['sku']}) chỉ còn {stock_qty}, đang tạo {requested_qty}."
+                        )
+                if stock_errors:
+                    error = "Không đủ tồn kho: " + " ".join(stock_errors)
+            if not error:
                 order_number = _build_order_number()
                 now = datetime.utcnow().isoformat()
                 total = subtotal + shipping_fee - discount_amount
@@ -941,6 +967,7 @@ def register_admin_routes(app):
         if order is None:
             conn.close()
             abort(404)
+        error = None
         status_email_note = None
         if request.method == "POST":
             new_status = request.form.get("status")
@@ -949,27 +976,70 @@ def register_admin_routes(app):
             tracking_code = request.form.get("tracking_code", "").strip() or None
             changed = False
             now = datetime.utcnow().isoformat()
+            admin_id = _get_current_user()["id"]
 
             if new_status in ORDER_STATUSES and new_status != order["status"]:
                 now = datetime.utcnow().isoformat()
                 completed_at = now if new_status == "completed" else order["completed_at"]
-                canceled_at = now if new_status in {"cancelled", "refunded", "returned"} else order["canceled_at"]
-                conn.execute(
-                    """
-                    UPDATE orders SET status = ?, updated_at = ?, completed_at = ?, canceled_at = ?
-                    WHERE id = ?
-                    """,
-                    (new_status, now, completed_at, canceled_at, order_id),
-                )
-                conn.execute(
-                    """
-                    INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    (order_id, new_status, note, _get_current_user()["id"], now),
-                )
-                status_email_note = note or f"Trang thai don da doi sang {new_status}"
-                changed = True
+                canceled_at = now if new_status in _ORDER_CANCEL_STATUSES else order["canceled_at"]
+                stock_restored = False
+                if (
+                    new_status in _ORDER_CANCEL_STATUSES
+                    and order["status"] not in _ORDER_CANCEL_STATUSES
+                ):
+                    movement_note = f"Admin {new_status} {order['order_number']}"
+                    if note:
+                        movement_note = f"{movement_note}: {note}"
+                    stock_restored = _restore_stock_for_order(
+                        conn,
+                        order["id"],
+                        order["order_number"],
+                        now,
+                        reason=f"admin_{new_status}",
+                        note=movement_note,
+                        admin_id=admin_id,
+                    )
+                stock_rededucted = False
+                if (
+                    new_status not in _ORDER_CANCEL_STATUSES
+                    and order["status"] in _ORDER_CANCEL_STATUSES
+                ):
+                    movement_note = f"Admin reactivate {order['order_number']}"
+                    if note:
+                        movement_note = f"{movement_note}: {note}"
+                    try:
+                        stock_rededucted = _deduct_restored_stock_for_order(
+                            conn,
+                            order["id"],
+                            order["order_number"],
+                            now,
+                            note=movement_note,
+                            admin_id=admin_id,
+                        )
+                    except ValueError as exc:
+                        error = str(exc)
+                if error is None:
+                    conn.execute(
+                        """
+                        UPDATE orders SET status = ?, updated_at = ?, completed_at = ?, canceled_at = ?
+                        WHERE id = ?
+                        """,
+                        (new_status, now, completed_at, canceled_at, order_id),
+                    )
+                    event_note = note
+                    if stock_restored:
+                        event_note = f"{event_note}\nĐã hoàn tồn kho cho đơn hàng.".strip()
+                    if stock_rededucted:
+                        event_note = f"{event_note}\nĐã trừ lại tồn kho cho đơn hàng.".strip()
+                    conn.execute(
+                        """
+                        INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
+                        VALUES (?, ?, ?, ?, ?)
+                        """,
+                        (order_id, new_status, event_note, admin_id, now),
+                    )
+                    status_email_note = note or f"Trạng thái đơn đã đổi sang {new_status}"
+                    changed = True
             if shipping_provider != order["shipping_provider"] or tracking_code != order["tracking_code"]:
                 conn.execute(
                     """
@@ -979,15 +1049,20 @@ def register_admin_routes(app):
                     """,
                     (shipping_provider, tracking_code, now, order_id),
                 )
-                tracking_note = "Cap nhat thong tin van don"
+                tracking_note = "Cập nhật thông tin vận đơn"
                 if tracking_code:
-                    tracking_note = f"{tracking_note}: {shipping_provider or 'Don vi van chuyen'} - {tracking_code}"
+                    tracking_note = f"{tracking_note}: {shipping_provider or 'Đơn vị vận chuyển'} - {tracking_code}"
+                tracking_event_status = (
+                    new_status
+                    if changed and new_status in ORDER_STATUSES
+                    else order["status"]
+                )
                 conn.execute(
                     """
                     INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
                     VALUES (?, ?, ?, ?, ?)
                     """,
-                    (order_id, new_status if new_status in ORDER_STATUSES else order["status"], tracking_note, _get_current_user()["id"], now),
+                    (order_id, tracking_event_status, tracking_note, admin_id, now),
                 )
                 if not status_email_note:
                     status_email_note = tracking_note
@@ -1020,6 +1095,7 @@ def register_admin_routes(app):
             items=items,
             events=events,
             statuses=ORDER_STATUSES,
+            error=error,
         )
 
     @app.route("/admin/orders/<int:order_id>/invoice")
@@ -1561,6 +1637,70 @@ def register_admin_routes(app):
             error=error,
         )
 
+    @app.route("/admin/marketing/coupons/<int:coupon_id>", methods=["GET", "POST"])
+    @admin_required("marketing")
+    def admin_coupon_detail(coupon_id):
+        conn = _get_db()
+        coupon = conn.execute("SELECT * FROM coupons WHERE id = ?", (coupon_id,)).fetchone()
+        if coupon is None:
+            conn.close()
+            abort(404)
+
+        error = None
+        if request.method == "POST":
+            code = request.form.get("code", "").strip().upper()
+            discount_type = request.form.get("discount_type", "percent")
+            value = _parse_int(request.form.get("value"), 0)
+            min_order = _parse_int(request.form.get("min_order"), 0)
+            max_discount = request.form.get("max_discount")
+            starts_at = request.form.get("starts_at") or None
+            ends_at = request.form.get("ends_at") or None
+            usage_limit = request.form.get("usage_limit") or None
+            applies_to = request.form.get("applies_to", "all")
+            is_active = 1 if request.form.get("is_active") else 0
+            duplicate = conn.execute(
+                "SELECT id FROM coupons WHERE UPPER(code) = ? AND id != ?",
+                (code, coupon_id),
+            ).fetchone()
+            if not code:
+                error = "Vui lòng nhập mã giảm giá."
+            elif duplicate:
+                error = "Mã giảm giá đã tồn tại."
+            else:
+                conn.execute(
+                    """
+                    UPDATE coupons
+                    SET code = ?, discount_type = ?, value = ?, min_order = ?, max_discount = ?,
+                        starts_at = ?, ends_at = ?, usage_limit = ?, is_active = ?, applies_to = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        code,
+                        discount_type,
+                        value,
+                        min_order,
+                        _parse_int(max_discount) if max_discount else None,
+                        starts_at,
+                        ends_at,
+                        _parse_int(usage_limit) if usage_limit else None,
+                        is_active,
+                        applies_to,
+                        coupon_id,
+                    ),
+                )
+                conn.commit()
+                return redirect(url_for("admin_coupon_detail", coupon_id=coupon_id))
+
+        coupon = conn.execute("SELECT * FROM coupons WHERE id = ?", (coupon_id,)).fetchone()
+        conn.close()
+        return render_template(
+            "admin/coupon_detail.html",
+            title=f"Mã giảm giá {coupon['code']}",
+            section="marketing",
+            coupon=coupon,
+            error=error,
+        )
+
     @app.route("/admin/marketing/coupons/<int:coupon_id>/delete", methods=["POST"])
     @admin_required("marketing")
     def admin_coupon_delete(coupon_id):
@@ -1606,6 +1746,7 @@ def register_admin_routes(app):
                     ),
                 )
                 conn.commit()
+                invalidate_content_cache()
         promotions = conn.execute(
             """
             SELECT promotions.*, categories.name AS category_name
@@ -1624,6 +1765,73 @@ def register_admin_routes(app):
             error=error,
         )
 
+    @app.route("/admin/marketing/promotions/<int:promo_id>", methods=["GET", "POST"])
+    @admin_required("marketing")
+    def admin_promotion_detail(promo_id):
+        conn = _get_db()
+        promotion = conn.execute(
+            "SELECT * FROM promotions WHERE id = ?", (promo_id,)
+        ).fetchone()
+        if promotion is None:
+            conn.close()
+            abort(404)
+
+        categories = conn.execute("SELECT id, name FROM categories ORDER BY name").fetchall()
+        error = None
+        if request.method == "POST":
+            name = request.form.get("name", "").strip()
+            promo_type = request.form.get("promo_type", "flash")
+            discount_type = request.form.get("discount_type", "percent")
+            value = _parse_int(request.form.get("value"), 0)
+            category_id = request.form.get("category_id") or None
+            starts_at = request.form.get("starts_at") or None
+            ends_at = request.form.get("ends_at") or None
+            is_active = 1 if request.form.get("is_active") else 0
+            if not name:
+                error = "Vui lòng nhập tên chương trình."
+            else:
+                conn.execute(
+                    """
+                    UPDATE promotions
+                    SET name = ?, promo_type = ?, discount_type = ?, value = ?,
+                        category_id = ?, starts_at = ?, ends_at = ?, is_active = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        name,
+                        promo_type,
+                        discount_type,
+                        value,
+                        _parse_int(category_id) if category_id else None,
+                        starts_at,
+                        ends_at,
+                        is_active,
+                        promo_id,
+                    ),
+                )
+                conn.commit()
+                invalidate_content_cache()
+                return redirect(url_for("admin_promotion_detail", promo_id=promo_id))
+
+        promotion = conn.execute(
+            """
+            SELECT promotions.*, categories.name AS category_name
+            FROM promotions
+            LEFT JOIN categories ON categories.id = promotions.category_id
+            WHERE promotions.id = ?
+            """,
+            (promo_id,),
+        ).fetchone()
+        conn.close()
+        return render_template(
+            "admin/promotion_detail.html",
+            title=f"Khuyến mãi {promotion['name']}",
+            section="marketing",
+            promotion=promotion,
+            categories=categories,
+            error=error,
+        )
+
     @app.route("/admin/marketing/promotions/<int:promo_id>/delete", methods=["POST"])
     @admin_required("marketing")
     def admin_promotion_delete(promo_id):
@@ -1631,6 +1839,7 @@ def register_admin_routes(app):
         conn.execute("DELETE FROM promotions WHERE id = ?", (promo_id,))
         conn.commit()
         conn.close()
+        invalidate_content_cache()
         return redirect(url_for("admin_promotions"))
 
     @app.route("/admin/characters")
@@ -1862,13 +2071,13 @@ def register_admin_routes(app):
             batch_code = form_values["batch_code"]
 
             if not variant_id or not character_id:
-                error = "Vui long chon bien the va nhan vat."
+                error = "Vui lòng chọn biến thể và nhân vật."
             elif not batch_code:
-                error = "Vui long nhap batch code."
+                error = "Vui lòng nhập batch code."
             elif quantity <= 0:
-                error = "So luong phai lon hon 0."
+                error = "Số lượng phải lớn hơn 0."
             elif quantity > 5000:
-                error = "So luong toi da cho moi batch la 5000."
+                error = "Số lượng tối đa cho mỗi batch là 5000."
             else:
                 try:
                     created = create_qr_batch(
@@ -1880,12 +2089,12 @@ def register_admin_routes(app):
                 except (RuntimeError, ValueError) as exc:
                     error = str(exc)
                 else:
-                    notice = f"Da tao {len(created)} QR token cho batch {batch_code}."
+                    notice = f"Đã tạo {len(created)} QR token cho batch {batch_code}."
                     return redirect(url_for("admin_qr", batch_code=batch_code, notice=notice))
 
         return render_template(
             "admin/qr_new.html",
-            title="Tao Batch QR",
+            title="Tạo Batch QR",
             section="qr",
             variants=variants,
             characters=characters,

@@ -616,6 +616,7 @@ def init_db():
         """
     )
     _ensure_column(conn, "users", "role", "TEXT DEFAULT 'customer'")
+    _ensure_column(conn, "users", "is_verified", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, "users", "phone", "TEXT")
     _ensure_column(conn, "users", "is_blocked", "INTEGER DEFAULT 0")
     _ensure_column(conn, "users", "customer_group", "TEXT")

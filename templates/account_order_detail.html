@@ -10,7 +10,7 @@
             <p>Trạng thái thanh toán: <span class="status-pill">{{ order.payment_status }}</span></p>
             <p>Người nhận: {{ order.recipient_name }}</p>
             <p>SĐT: {{ order.phone }}</p>
-            <p>Địa chỉ: {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+            <p>Địa chỉ: {{ [order.line1, order.line2, order.ward, order.district, order.province] | select | join(', ') }}</p>
             {% if order.tracking_code %}
             <p>Mã vận đơn: <strong>{{ order.tracking_code }}</strong></p>
             <p>Đơn vị vận chuyển: {{ order.shipping_provider or '-' }}</p>

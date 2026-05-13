@@ -1090,7 +1090,7 @@
             this.progressCurrent.textContent = formatTime(this.totalDuration);
             this.progressFill.style.width = "100%";
             this.toggleButton.textContent = "Play";
-            this._setStatus("Doan nhac gioi thieu da phat xong. Nhan Play de nghe lai.");
+            this._setStatus("Đoạn nhạc giới thiệu đã phát xong. Nhấn Play để nghe lại.");
         };
 
         PentatonicPlayer.prototype.pause = function () {
@@ -1106,7 +1106,7 @@
             this._stopVisualizer();
             this._stopActiveNodes();
             this.toggleButton.textContent = "Play";
-            this._setStatus("Da tam dung. Ban co the tiep tuc tu nhip hien tai.");
+            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
         };
 
         PentatonicPlayer.prototype.play = function () {

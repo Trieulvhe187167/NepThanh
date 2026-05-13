@@ -167,6 +167,9 @@
                                 required />
                             <button type="submit" class="auth-submit">Đăng nhập</button>
                         </form>
+                        <p class="auth-switch">
+                            <a href="{{ url_for('forgot_password') }}" class="auth-switch-link">Quên mật khẩu?</a>
+                        </p>
                         <div class="auth-divider"><span>Hoặc</span></div>
                         {% if google_enabled %}
                         <a class="google-btn"

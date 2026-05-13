@@ -13,7 +13,15 @@
 
     <div class="product-detail-content">
         <h1 class="product-detail-title">{{ product.name }}</h1>
-        <div class="product-detail-price">{{ "{:,}".format(product.price) }} ₫</div>
+        <div class="product-detail-price">
+            {% if product.has_promotion %}
+            <del class="old-price">{{ "{:,}".format(product.regular_price) }} ₫</del>
+            {% endif %}
+            {{ "{:,}".format(product.price) }} ₫
+            {% if product.has_promotion and product.promotion_name %}
+            <small class="sale-label">{{ product.promotion_name }}</small>
+            {% endif %}
+        </div>
 
         <hr class="product-divider" />
 

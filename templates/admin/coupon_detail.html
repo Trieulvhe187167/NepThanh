@@ -1,0 +1,80 @@
+{% extends "admin/base.html" %}
+{% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
+
+<div class="admin-actions" style="justify-content: flex-start; margin-bottom: 1rem;">
+    <a class="btn btn-secondary" href="{{ url_for('admin_coupons') }}">Quay lại mã giảm giá</a>
+</div>
+
+<div class="split">
+    <div class="admin-card">
+        <h3>Chi tiết mã</h3>
+        <p><strong>Mã:</strong> {{ coupon.code }}</p>
+        <p><strong>Loại:</strong> {{ coupon.discount_type }}</p>
+        <p><strong>Giá trị:</strong> {{ coupon.value }}</p>
+        <p><strong>Đơn tối thiểu:</strong> {{ "{:,}".format(coupon.min_order or 0) }} ₫</p>
+        <p><strong>Giảm tối đa:</strong> {% if coupon.max_discount %}{{ "{:,}".format(coupon.max_discount) }} ₫{% else %}-{% endif %}</p>
+        <p><strong>Đã dùng:</strong> {{ coupon.used_count or 0 }}{% if coupon.usage_limit %} / {{ coupon.usage_limit }}{% endif %}</p>
+        <p><strong>Áp dụng:</strong> {{ coupon.applies_to }}</p>
+        <p><strong>Trạng thái:</strong> {% if coupon.is_active %}Đang bật{% else %}Đang tắt{% endif %}</p>
+        <p><strong>Bắt đầu:</strong> {{ coupon.starts_at or '-' }}</p>
+        <p><strong>Kết thúc:</strong> {{ coupon.ends_at or '-' }}</p>
+        <p><strong>Tạo lúc:</strong> {{ coupon.created_at }}</p>
+    </div>
+
+    <div class="admin-card">
+        <h3>Chỉnh sửa</h3>
+        <form method="post" class="form-grid">
+            <div class="form-group">
+                <label>Mã</label>
+                <input name="code" value="{{ coupon.code }}" required />
+            </div>
+            <div class="form-group">
+                <label>Loại</label>
+                <select name="discount_type">
+                    <option value="percent" {% if coupon.discount_type == 'percent' %}selected{% endif %}>%</option>
+                    <option value="fixed" {% if coupon.discount_type == 'fixed' %}selected{% endif %}>Số tiền</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Giá trị</label>
+                <input name="value" type="number" value="{{ coupon.value or 0 }}" />
+            </div>
+            <div class="form-group">
+                <label>Đơn tối thiểu</label>
+                <input name="min_order" type="number" value="{{ coupon.min_order or 0 }}" />
+            </div>
+            <div class="form-group">
+                <label>Giảm tối đa</label>
+                <input name="max_discount" type="number" value="{{ coupon.max_discount or '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Bắt đầu</label>
+                <input name="starts_at" type="datetime-local" value="{{ coupon.starts_at[:16] if coupon.starts_at else '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Kết thúc</label>
+                <input name="ends_at" type="datetime-local" value="{{ coupon.ends_at[:16] if coupon.ends_at else '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Giới hạn</label>
+                <input name="usage_limit" type="number" value="{{ coupon.usage_limit or '' }}" />
+            </div>
+            <div class="form-group">
+                <label>Áp dụng</label>
+                <select name="applies_to">
+                    <option value="all" {% if coupon.applies_to == 'all' %}selected{% endif %}>Tất cả</option>
+                    <option value="category" {% if coupon.applies_to == 'category' %}selected{% endif %}>Danh mục</option>
+                    <option value="product" {% if coupon.applies_to == 'product' %}selected{% endif %}>Sản phẩm</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="is_active" {% if coupon.is_active %}checked{% endif %} /> Kích hoạt</label>
+            </div>
+            <div class="form-group" style="grid-column: 1 / -1;">
+                <button class="btn btn-primary" type="submit">Lưu thay đổi</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

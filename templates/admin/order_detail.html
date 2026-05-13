@@ -1,5 +1,6 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block content %}
+{% if error %}<p class="notice">{{ error }}</p>{% endif %}
 <div class="split">
     <div class="admin-card">
         <h3>Thông tin đơn</h3>
@@ -11,9 +12,9 @@
         <p><strong>Phí ship:</strong> {{ "{:,}".format(order.shipping_fee) }} ₫</p>
         <p><strong>Giảm giá:</strong> {{ "{:,}".format(order.discount_amount) }} ₫</p>
         <p><strong>Người nhận:</strong> {{ order.recipient_name }}</p>
-        <p><strong>Email:</strong> {{ order.email }}</p>
+        <p><strong>Email:</strong> {{ order.email or '-' }}</p>
         <p><strong>SĐT:</strong> {{ order.phone }}</p>
-        <p><strong>Địa chỉ:</strong> {{ order.line1 }} {{ order.line2 }} {{ order.ward }} {{ order.district }} {{ order.province }}</p>
+        <p><strong>Địa chỉ:</strong> {{ [order.line1, order.line2, order.ward, order.district, order.province] | select | join(', ') }}</p>
         <p><strong>Đơn vị vận chuyển:</strong> {{ order.shipping_provider or '-' }}</p>
         <p><strong>Mã vận đơn:</strong> {{ order.tracking_code or '-' }}</p>
         <p><strong>Ghi chú:</strong> {{ order.notes }}</p>

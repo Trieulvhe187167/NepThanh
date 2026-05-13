@@ -117,7 +117,7 @@ def add_user_address(user_id, data):
     district = (data.get("district") or "").strip()
     province = (data.get("province") or "").strip()
     if not line1 or not district or not province:
-        return False, "Vui long nhap day du dia chi, quan/huyen va tinh/thanh."
+        return False, "Vui lòng nhập đầy đủ địa chỉ, quận/huyện và tỉnh/thành."
 
     conn = _get_db()
     has_address = conn.execute(
@@ -150,7 +150,7 @@ def add_user_address(user_id, data):
     )
     conn.commit()
     conn.close()
-    return True, "Da them dia chi giao hang."
+    return True, "Đã thêm địa chỉ giao hàng."
 
 
 def update_user_address(user_id, address_id, data):
@@ -159,7 +159,7 @@ def update_user_address(user_id, address_id, data):
     district = (data.get("district") or "").strip()
     province = (data.get("province") or "").strip()
     if not line1 or not district or not province:
-        return False, "Vui long nhap day du dia chi, quan/huyen va tinh/thanh."
+        return False, "Vui lòng nhập đầy đủ địa chỉ, quận/huyện và tỉnh/thành."
 
     conn = _get_db()
     row = conn.execute(
@@ -168,7 +168,7 @@ def update_user_address(user_id, address_id, data):
     ).fetchone()
     if row is None:
         conn.close()
-        return False, "Dia chi khong ton tai."
+        return False, "Địa chỉ không tồn tại."
 
     is_default = 1 if data.get("is_default") else 0
     if is_default:
@@ -195,7 +195,7 @@ def update_user_address(user_id, address_id, data):
     )
     conn.commit()
     conn.close()
-    return True, "Da cap nhat dia chi."
+    return True, "Đã cập nhật địa chỉ."
 
 
 def delete_user_address(user_id, address_id):
@@ -207,7 +207,7 @@ def delete_user_address(user_id, address_id):
     ).fetchone()
     if row is None:
         conn.close()
-        return False, "Dia chi khong ton tai."
+        return False, "Địa chỉ không tồn tại."
     conn.execute("DELETE FROM addresses WHERE id = ? AND user_id = ?", (address_id, user_id))
     if row["is_default"]:
         first = conn.execute(
@@ -221,7 +221,7 @@ def delete_user_address(user_id, address_id):
             )
     conn.commit()
     conn.close()
-    return True, "Da xoa dia chi."
+    return True, "Đã xoá địa chỉ."
 
 
 def set_default_user_address(user_id, address_id):
@@ -233,7 +233,7 @@ def set_default_user_address(user_id, address_id):
     ).fetchone()
     if row is None:
         conn.close()
-        return False, "Dia chi khong ton tai."
+        return False, "Địa chỉ không tồn tại."
     conn.execute("UPDATE addresses SET is_default = 0 WHERE user_id = ?", (user_id,))
     conn.execute(
         "UPDATE addresses SET is_default = 1 WHERE id = ? AND user_id = ?",
@@ -241,7 +241,7 @@ def set_default_user_address(user_id, address_id):
     )
     conn.commit()
     conn.close()
-    return True, "Da dat dia chi mac dinh."
+    return True, "Đã đặt địa chỉ mặc định."
 
 
 def list_user_orders(user_id):

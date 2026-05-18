@@ -9,7 +9,7 @@ from modules.promotions import (
     best_promotion_for_price,
     get_product_promotion_map,
 )
-from modules.utils import _normalize_static_path, _static_path_exists
+from modules.utils import _find_static_asset, _normalize_static_path, _static_path_exists
 
 
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -74,6 +74,20 @@ def _glob_smallest_relative(patterns):
     return os.path.relpath(matches[0][1], STATIC_DIR).replace("\\", "/")
 
 
+def _slug_stems(slug):
+    normalized = (slug or "").strip()
+    if not normalized:
+        return []
+    return [normalized.replace("-", "_"), normalized]
+
+
+def _candidate_stem(path):
+    normalized = _normalize_static_path(path)
+    if not normalized:
+        return None
+    return os.path.splitext(os.path.basename(normalized))[0]
+
+
 def _resolve_character_asset_path(candidate):
     normalized = _normalize_static_path(candidate)
     if not normalized:
@@ -90,11 +104,21 @@ def _resolve_character_asset_path(candidate):
             resolved = f"{prefix}{normalized}"
             if _static_path_exists(resolved):
                 return resolved
+    if os.path.splitext(normalized)[1].lower() not in {".glb", ".gltf", ".mp4"}:
+        image_match = _find_static_asset(
+            ("images/characters", "images"),
+            [_candidate_stem(normalized)],
+        )
+        if image_match:
+            return image_match
     return normalized
 
 
 def _character_preview_for_stem(stem):
     base = stem.replace("-", "_")
+    preview = _find_static_asset(("images/characters", "images"), [base, stem])
+    if preview:
+        return preview
     exact = _smallest_existing(
         [
             f"images/{base}.jpg",
@@ -159,23 +183,35 @@ def _character_model_for_slug(slug):
 
 
 def _character_image_for_slug(slug):
-    return _smallest_existing(
-        [
-            f"images/{slug.replace('-', '_')}.jpg",
-            f"images/{slug.replace('-', '_')}.jpeg",
-            f"images/{slug.replace('-', '_')}.png",
-            f"images/{slug.replace('-', '_')}.webp",
-            f"images/characters/{slug.replace('-', '_')}.jpg",
-            f"images/characters/{slug}.jpg",
-            f"images/characters/{slug.replace('-', '_')}.jpeg",
-            f"images/characters/{slug}.jpeg",
-            f"images/characters/{slug.replace('-', '_')}.png",
-            f"images/characters/{slug}.png",
-            f"images/characters/{slug.replace('-', '_')}.webp",
-            f"images/characters/{slug}.webp",
-            f"image/characters/{slug}.jpg",
-        ]
-    ) or f"images/{slug.replace('-', '_')}.jpg"
+    return (
+        _find_static_asset(("images/characters", "images"), _slug_stems(slug))
+        or "images/logo/logo3.png"
+    )
+
+
+def _product_image_for(row, image_url):
+    normalized = _normalize_static_path(image_url)
+    if normalized and _static_path_exists(normalized):
+        return normalized
+
+    product_stems = _slug_stems(row["slug"])
+    character_slug = row["character_slug"] if "character_slug" in row.keys() else None
+    character_stems = _slug_stems(character_slug)
+    candidate_stem = _candidate_stem(normalized)
+    stems = []
+    for stem in [candidate_stem] + character_stems + product_stems:
+        if stem and stem not in stems:
+            stems.append(stem)
+    for stem in list(stems):
+        if stem.startswith("ao_"):
+            stripped = stem[3:]
+            if stripped and stripped not in stems:
+                stems.append(stripped)
+
+    return (
+        _find_static_asset(("images/shirt", "images/products", "uploads/products", "images"), stems)
+        or "images/logo/logo3.png"
+    )
 
 
 def _map_character(row):
@@ -234,9 +270,7 @@ def _map_character(row):
 
 
 def _map_product(row, image_url, promotions=None):
-    image = _normalize_static_path(image_url)
-    if not image:
-        image = f"images/{row['slug'].replace('-', '_')}.jpg"
+    image = _product_image_for(row, image_url)
     regular_price = row["base_price"] or 0
     promotion = best_promotion_for_price(regular_price, promotions or [])
     sale_price = apply_promotion_to_price(regular_price, promotion)
@@ -300,7 +334,13 @@ def load_products():
     def loader():
         conn = _get_db()
         products = conn.execute(
-            "SELECT * FROM products WHERE status = 'active' ORDER BY id"
+            """
+            SELECT p.*, c.slug AS character_slug
+            FROM products p
+            LEFT JOIN characters c ON c.id = p.character_id
+            WHERE p.status = 'active'
+            ORDER BY p.id
+            """
         ).fetchall()
         image_rows = conn.execute(
             "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
@@ -324,7 +364,14 @@ def load_products():
 def load_all_products():
     def loader():
         conn = _get_db()
-        products = conn.execute("SELECT * FROM products ORDER BY id").fetchall()
+        products = conn.execute(
+            """
+            SELECT p.*, c.slug AS character_slug
+            FROM products p
+            LEFT JOIN characters c ON c.id = p.character_id
+            ORDER BY p.id
+            """
+        ).fetchall()
         image_rows = conn.execute(
             "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
         ).fetchall()

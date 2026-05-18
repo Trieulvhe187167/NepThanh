@@ -39,7 +39,14 @@ from modules.qr_service import (
     get_qr_stats,
     list_qr_batches,
 )
-from modules.utils import _build_order_number, _generate_qr_png, _parse_int, _save_upload, _slugify
+from modules.utils import (
+    _build_order_number,
+    _generate_qr_png,
+    _normalize_static_path,
+    _parse_int,
+    _save_upload,
+    _slugify,
+)
 
 
 def _log_action(admin_id, action, entity_type=None, entity_id=None, details=None):
@@ -565,7 +572,7 @@ def register_admin_routes(app):
     @admin_required("products")
     def admin_product_image_new(product_id):
         conn = _get_db()
-        image_url = request.form.get("image_url", "").strip()
+        image_url = _normalize_static_path(request.form.get("image_url", ""))
         alt_text = request.form.get("alt_text", "").strip()
         sort_order = _parse_int(request.form.get("sort_order"), 0)
         file_storage = request.files.get("image_file")
@@ -592,7 +599,7 @@ def register_admin_routes(app):
         if image is None:
             conn.close()
             abort(404)
-        url = request.form.get("image_url", "").strip()
+        url = _normalize_static_path(request.form.get("image_url", ""))
         alt_text = request.form.get("alt_text", "").strip()
         sort_order = _parse_int(request.form.get("sort_order"), 0)
         conn.execute(
@@ -708,7 +715,7 @@ def register_admin_routes(app):
             name = request.form.get("name", "").strip()
             slug = request.form.get("slug", "").strip() or _slugify(name)
             description = request.form.get("description", "").strip()
-            image_url = request.form.get("image_url", "").strip()
+            image_url = _normalize_static_path(request.form.get("image_url", ""))
             if not name:
                 error = "Vui lòng nhập tên bộ sưu tập."
             elif not _validate_unique_slug(conn, "collections", slug):
@@ -1306,7 +1313,7 @@ def register_admin_routes(app):
         error = None
         if request.method == "POST":
             title = request.form.get("title", "").strip()
-            image_url = request.form.get("image_url", "").strip()
+            image_url = _normalize_static_path(request.form.get("image_url", ""))
             link_url = request.form.get("link_url", "").strip()
             position = request.form.get("position", "homepage").strip()
             sort_order = _parse_int(request.form.get("sort_order"), 0)
@@ -1871,7 +1878,7 @@ def register_admin_routes(app):
             role_text = request.form.get("role", "").strip()
             story_text = request.form.get("story_text", "").strip()
             audio_url = request.form.get("audio_url", "").strip()
-            image_url = request.form.get("image_url", "").strip()
+            image_url = _normalize_static_path(request.form.get("image_url", ""))
             seo_title = request.form.get("seo_title", "").strip()
             seo_description = request.form.get("seo_description", "").strip()
             is_active = 1 if request.form.get("is_active") else 0
@@ -1935,7 +1942,7 @@ def register_admin_routes(app):
             role_text = request.form.get("role", "").strip()
             story_text = request.form.get("story_text", "").strip()
             audio_url = request.form.get("audio_url", "").strip()
-            image_url = request.form.get("image_url", "").strip()
+            image_url = _normalize_static_path(request.form.get("image_url", ""))
             seo_title = request.form.get("seo_title", "").strip()
             seo_description = request.form.get("seo_description", "").strip()
             is_active = 1 if request.form.get("is_active") else 0

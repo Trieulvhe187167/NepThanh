@@ -164,7 +164,7 @@
         <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_product_image_new', product_id=product.id) }}" class="form-grid">
             <div class="form-group">
                 <label>Ảnh URL</label>
-                <input name="image_url" />
+                <input name="image_url" placeholder="images/shirt/anh_hai.jpg" />
             </div>
             <div class="form-group">
                 <label>Hoặc upload</label>
@@ -195,7 +195,7 @@
                 {% for image in images %}
                 <tr>
                     <form method="post" action="{{ url_for('admin_product_image_edit', image_id=image.id) }}">
-                        <td><input name="image_url" value="{{ image.url }}" /></td>
+                        <td><input name="image_url" value="{{ image.url }}" placeholder="images/shirt/anh_hai.jpg" /></td>
                         <td><input name="alt_text" value="{{ image.alt_text or '' }}" /></td>
                         <td><input type="number" name="sort_order" value="{{ image.sort_order }}" /></td>
                         <td>

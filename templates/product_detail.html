@@ -93,10 +93,10 @@
 
         <div class="pd-character-card">
             <div class="pd-character-avatar">
-                <img src="{{ url_for('static', filename=character.image) if character and character.image else url_for('static', filename='images/logo/logo.png') }}"
+                <img src="{{ url_for('static', filename=character.image) if character and character.image else url_for('static', filename='images/logo/logo3.png') }}"
                     alt="{{ character.name if character else product.name }}"
                     loading="lazy" decoding="async"
-                    onerror='this.src="{{ url_for("static", filename="images/logo/logo.png") }}"' />
+                    onerror='this.src="{{ url_for("static", filename="images/logo/logo3.png") }}"' />
             </div>
             <div class="pd-character-info">
                 <h4>{{ character.name }}</h4>

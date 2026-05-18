@@ -1412,6 +1412,36 @@ body.auth-modal-open .auth-modal-panel .auth-card {
     font-weight: 500;
 }
 
+.flash-dismissible {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 0.75rem;
+}
+
+.flash-close {
+    width: 1.75rem;
+    height: 1.75rem;
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--vn-red);
+    font-size: 1.25rem;
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.flash-close:hover,
+.flash-close:focus-visible {
+    background: rgba(183, 28, 28, 0.1);
+    outline: none;
+}
+
 .flash-message.success {
     background: #E8F5E9;
     color: #2E7D32;

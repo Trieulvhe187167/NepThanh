@@ -8,7 +8,12 @@ from modules.promotions import (
     best_promotion_for_price,
     get_product_promotion_map,
 )
-from modules.utils import _normalize_static_path, _parse_int
+from modules.utils import (
+    _find_static_asset,
+    _normalize_static_path,
+    _parse_int,
+    _static_path_exists,
+)
 
 SESSION_CART_KEY = "guest_cart_items"
 SESSION_COUPON_KEY = "guest_cart_coupon"
@@ -21,6 +26,43 @@ SHIPPING_ZONES = {
     "province": {"label": "Liên tỉnh (2-4 ngày)", "multiplier": 1.2},
     "remote": {"label": "Vùng xa (4-6 ngày)", "multiplier": 1.45},
 }
+
+
+def _image_stems(slug):
+    normalized = (slug or "").strip()
+    if not normalized:
+        return []
+    return [normalized.replace("-", "_"), normalized]
+
+
+def _image_stem_from_path(path):
+    normalized = _normalize_static_path(path)
+    if not normalized:
+        return None
+    return normalized.rsplit("/", 1)[-1].rsplit(".", 1)[0]
+
+
+def _resolve_product_image(image_url, product_slug, character_slug=None):
+    image = _normalize_static_path(image_url)
+    if image and _static_path_exists(image):
+        return image
+    stems = []
+    for stem in (
+        [_image_stem_from_path(image)]
+        + _image_stems(character_slug)
+        + _image_stems(product_slug)
+    ):
+        if stem and stem not in stems:
+            stems.append(stem)
+    for stem in list(stems):
+        if stem.startswith("ao_"):
+            stripped = stem[3:]
+            if stripped and stripped not in stems:
+                stems.append(stripped)
+    return (
+        _find_static_asset(("images/shirt", "images/products", "uploads/products", "images"), stems)
+        or "images/logo/logo3.png"
+    )
 
 
 def ensure_cart_tables():
@@ -525,11 +567,11 @@ def _build_items(conn, item_map):
             regular_unit_price, promotion_map.get(variant["product_id"])
         )
         unit_price = apply_promotion_to_price(regular_unit_price, promotion)
-        image = variant["image"]
-        if image:
-            image = _normalize_static_path(image)
-        if not image:
-            image = f"images/{variant['product_slug'].replace('-', '_')}.jpg"
+        image = _resolve_product_image(
+            variant["image"],
+            variant["product_slug"],
+            variant["character_slug"],
+        )
         items.append(
             {
                 "variant_id": variant_id,
@@ -569,9 +611,11 @@ def _load_variant_rows(conn, variant_ids):
             p.slug AS product_slug,
             p.name AS product_name,
             p.base_price,
-            p.status AS product_status
+            p.status AS product_status,
+            c.slug AS character_slug
         FROM product_variants v
         JOIN products p ON p.id = v.product_id
+        LEFT JOIN characters c ON c.id = p.character_id
         WHERE v.id IN ({placeholders})
         """,
         tuple(variant_ids),

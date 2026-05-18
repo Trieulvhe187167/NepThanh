@@ -10,6 +10,8 @@ from werkzeug.utils import secure_filename
 
 from modules.config import BASE_DIR, UPLOAD_DIR
 
+IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+
 
 def _normalize_static_path(value):
     if not value:
@@ -24,6 +26,45 @@ def _normalize_static_path(value):
 
 def _static_path_exists(relative_path):
     return os.path.exists(os.path.join(BASE_DIR, "static", *relative_path.split("/")))
+
+
+def _find_static_asset(folders, stems, extensions=IMAGE_EXTENSIONS):
+    candidates = []
+    seen = set()
+    normalized_extensions = tuple(ext.lower() for ext in extensions)
+    for folder in folders:
+        clean_folder = _normalize_static_path(folder)
+        if not clean_folder:
+            continue
+        absolute_folder = os.path.join(BASE_DIR, "static", *clean_folder.split("/"))
+        if not os.path.isdir(absolute_folder):
+            continue
+        try:
+            names = sorted(os.listdir(absolute_folder))
+        except OSError:
+            continue
+        for stem in stems:
+            clean_stem = os.path.splitext(os.path.basename((stem or "").strip()))[0]
+            if not clean_stem:
+                continue
+            for name in names:
+                file_stem, ext = os.path.splitext(name)
+                if file_stem != clean_stem or ext.lower() not in normalized_extensions:
+                    continue
+                relative_path = f"{clean_folder}/{name}".replace("\\", "/")
+                if relative_path in seen:
+                    continue
+                seen.add(relative_path)
+                absolute_path = os.path.join(absolute_folder, name)
+                try:
+                    size = os.path.getsize(absolute_path)
+                except OSError:
+                    size = float("inf")
+                candidates.append((size, relative_path))
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: (item[0], item[1]))
+    return candidates[0][1]
 
 
 def _slugify(value):

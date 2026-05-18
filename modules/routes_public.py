@@ -684,7 +684,8 @@ def register_public_routes(app):
             abort(404)
         products = load_products()
         from_qr = request.args.get("from_qr") == "1"
-        qr_token = (request.args.get("token") or "").strip() if from_qr else ""
+        if from_qr and request.args.get("token"):
+            return redirect(url_for("character_page", slug=slug, from_qr=1))
         return render_template(
             "character.html",
             title=f"{character['name']} - Di sản Việt",
@@ -696,7 +697,6 @@ def register_public_routes(app):
             characters=characters,
             products=products,
             from_qr=from_qr,
-            qr_token=qr_token,
             body_class="character-detail-page",
             main_class="character-main",
         )
@@ -1034,6 +1034,5 @@ def register_public_routes(app):
                 "character_page",
                 slug=tag["character_slug"],
                 from_qr=1,
-                token=tag["token"],
             )
         )

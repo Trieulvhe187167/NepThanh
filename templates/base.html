@@ -108,6 +108,18 @@
         </div>
         {% block sections %}{% endblock %}
     </main>
+    <script>
+        document.addEventListener("click", function (event) {
+            var button = event.target.closest("[data-flash-dismiss]");
+            if (!button) {
+                return;
+            }
+            var message = button.closest(".flash-message");
+            if (message) {
+                message.remove();
+            }
+        });
+    </script>
     <footer>
         <div class="container">
             <div class="footer-content">

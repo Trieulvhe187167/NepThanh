@@ -3,8 +3,9 @@
 {% block content %}
 {% if from_qr %}
 <div class="flash-stack">
-    <div class="flash-message success">
-        Bạn vừa mở khóa nhân vật {{ character.name }}{% if qr_token %} (token: {{ qr_token }}){% endif %}.
+    <div class="flash-message success flash-dismissible">
+        <span>Bạn vừa mở khóa nhân vật {{ character.name }}.</span>
+        <button type="button" class="flash-close" data-flash-dismiss aria-label="Đóng thông báo">×</button>
     </div>
 </div>
 {% endif %}

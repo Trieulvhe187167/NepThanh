@@ -13,6 +13,7 @@ DEFAULT_ITEM_LENGTH_CM = 30
 DEFAULT_ITEM_WIDTH_CM = 25
 DEFAULT_ITEM_HEIGHT_CM = 3
 DEFAULT_FALLBACK_FEE = 30000
+FIXED_SHIPPING_FEE = 30000
 
 WAREHOUSE_PROVINCE = "Hà Nội"
 WAREHOUSE_DISTRICT = os.environ.get("SHIPPING_ORIGIN_DISTRICT", "Quận Hai Bà Trưng")
@@ -21,57 +22,36 @@ WAREHOUSE_ADDRESS = os.environ.get("SHIPPING_ORIGIN_ADDRESS", "Kho Hà Nội")
 
 
 def quote_shipping_options(conn, cart, address, selected_method=None, payment_method="cod"):
-    discounted_subtotal = max(
-        _parse_int(cart.get("subtotal"), 0) - _parse_int(cart.get("discount_amount"), 0),
-        0,
-    )
-    free_threshold = _parse_int(_get_setting(conn, "free_shipping_threshold", "0"), 0)
-    if free_threshold > 0 and discounted_subtotal >= free_threshold:
-        return [
-            {
-                "id": "freeship",
-                "carrier": "shop",
-                "carrier_label": "Shop",
-                "service": "free",
-                "service_label": "Miễn phí vận chuyển",
-                "fee": 0,
-                "estimated": True,
-                "source": "promotion",
-                "message": "Đơn hàng đạt điều kiện miễn phí vận chuyển.",
-            }
-        ]
-
-    package = build_package(cart.get("items") or [])
-    address = normalize_address(address)
-    quotes = []
-    quotes.extend(_quote_ghn(package, address, discounted_subtotal, payment_method))
-    quotes.extend(_quote_ghtk(package, address, discounted_subtotal))
-    quotes.extend(_quote_viettelpost(package, address, discounted_subtotal, payment_method))
-    if not any(quote.get("source") == "api" for quote in quotes):
-        quotes.extend(_fallback_quotes(conn, address, package))
-
-    deduped = {}
-    for quote in quotes:
-        if quote.get("fee") is None:
-            continue
-        quote_id = quote["id"]
-        if quote_id not in deduped or quote["fee"] < deduped[quote_id]["fee"]:
-            deduped[quote_id] = quote
-    ordered = sorted(deduped.values(), key=lambda q: (q["fee"], q["carrier_label"], q["service_label"]))
-    if selected_method:
-        ordered.sort(key=lambda q: 0 if q["id"] == selected_method else 1)
-    return ordered
+    # Tạm thời tắt báo giá API hãng, gồm "GHN - tiêu chuẩn".
+    # Khi cần bật lại, khôi phục các dòng gọi _quote_ghn/_quote_ghtk/_quote_viettelpost bên dưới.
+    return [_fixed_shipping_quote()]
 
 
 def select_shipping_quote(conn, cart, address, method_id, payment_method="cod"):
     method_id = (method_id or "").strip()
-    if not method_id:
-        return None, "Vui lòng chọn đơn vị vận chuyển."
     quotes = quote_shipping_options(conn, cart, address, method_id, payment_method)
+    if not method_id and quotes:
+        return quotes[0], None
     for quote in quotes:
         if quote["id"] == method_id:
             return quote, None
+    if quotes:
+        return quotes[0], None
     return None, "Phương thức vận chuyển không còn khả dụng cho địa chỉ này."
+
+
+def _fixed_shipping_quote():
+    return {
+        "id": "shop:fixed",
+        "carrier": "shop",
+        "carrier_label": "Shop",
+        "service": "fixed",
+        "service_label": "Đồng giá vận chuyển",
+        "fee": FIXED_SHIPPING_FEE,
+        "estimated": True,
+        "source": "fixed",
+        "message": "Phí vận chuyển cố định 30.000 đ cho mọi đơn hàng.",
+    }
 
 
 def build_package(items):

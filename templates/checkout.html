@@ -104,10 +104,17 @@
                 <h2>Thanh toán</h2>
                 <div class="payment-options">
                     <label class="payment-option">
-                        <input type="radio" name="payment_method" value="cod" {% if form_values.payment_method != "vnpay" %}checked{% endif %} />
+                        <input type="radio" name="payment_method" value="cod" {% if form_values.payment_method == "cod" %}checked{% endif %} />
                         <span>
                             <strong>COD</strong>
                             <small>Thanh toán khi nhận hàng</small>
+                        </span>
+                    </label>
+                    <label class="payment-option{% if not bank_transfer_enabled %} payment-option-disabled{% endif %}">
+                        <input type="radio" name="payment_method" value="bank_transfer" {% if form_values.payment_method == "bank_transfer" %}checked{% endif %} {% if not bank_transfer_enabled %}disabled{% endif %} />
+                        <span>
+                            <strong>Chuyển khoản ngân hàng / QR</strong>
+                            <small>Đặt hàng trước, quét QR chuyển khoản đúng số tiền và nội dung</small>
                         </span>
                     </label>
                     <label class="payment-option">

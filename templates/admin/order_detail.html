@@ -18,6 +18,16 @@
         <p><strong>Đơn vị vận chuyển:</strong> {{ order.shipping_provider or '-' }}</p>
         <p><strong>Mã vận đơn:</strong> {{ order.tracking_code or '-' }}</p>
         <p><strong>Ghi chú:</strong> {{ order.notes }}</p>
+        {% if bank_transfer %}
+        <div class="notice" style="margin-top: 1rem;">
+            <strong>Chuyển khoản ngân hàng</strong><br />
+            Ngân hàng: {{ bank_transfer.bank_code }}<br />
+            Số tài khoản: {{ bank_transfer.account_number }}<br />
+            Chủ tài khoản: {{ bank_transfer.account_name }}<br />
+            Số tiền: {{ "{:,}".format(bank_transfer.amount) }} ₫<br />
+            Nội dung: {{ bank_transfer.content }}
+        </div>
+        {% endif %}
         <div class="admin-actions" style="justify-content: flex-start; margin-top: 1rem;">
             <a class="btn btn-secondary" href="{{ url_for('admin_order_invoice', order_id=order.id) }}" target="_blank">In hóa đơn</a>
             <a class="btn btn-secondary" href="{{ url_for('admin_order_packing', order_id=order.id) }}" target="_blank">Phiếu giao hàng</a>
@@ -31,6 +41,14 @@
                 <select name="status">
                     {% for st in statuses %}
                     <option value="{{ st }}" {% if order.status == st %}selected{% endif %}>{{ st }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Trạng thái thanh toán</label>
+                <select name="payment_status">
+                    {% for st in payment_statuses %}
+                    <option value="{{ st }}" {% if order.payment_status == st %}selected{% endif %}>{{ st }}</option>
                     {% endfor %}
                 </select>
             </div>

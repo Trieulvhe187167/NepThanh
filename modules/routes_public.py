@@ -23,6 +23,7 @@ from modules.account_security import (
     mark_user_email_verified,
     update_user_password,
 )
+from modules.bank_transfer import bank_transfer_enabled
 from modules.cart import (
     add_item_to_cart,
     apply_coupon_to_cart,
@@ -34,6 +35,7 @@ from modules.cart import (
     update_cart_item,
 )
 from modules.checkout import (
+    get_bank_transfer_instructions,
     get_checkout_prefill,
     get_order_details,
     handle_vnpay_callback,
@@ -401,6 +403,7 @@ def register_public_routes(app):
             form_values=form_values,
             profile=profile,
             addresses=addresses,
+            bank_transfer_enabled=bank_transfer_enabled(),
         )
 
     @app.route("/shipping/quotes", methods=["POST"])
@@ -463,6 +466,7 @@ def register_public_routes(app):
             description="Đơn hàng của bạn đã được ghi nhận.",
             order=order,
             items=items,
+            bank_transfer=get_bank_transfer_instructions(order),
             is_success=True,
         )
 

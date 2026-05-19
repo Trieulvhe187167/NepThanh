@@ -6,7 +6,7 @@ from datetime import datetime
 
 from flask import Flask, render_template, request
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(override=True)
 
 from modules.auth import _get_current_user, _is_admin_user, _google_enabled
 from modules.cart import get_cart_item_count

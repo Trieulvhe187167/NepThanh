@@ -29,6 +29,7 @@ ORDER_STATUSES = [
     "refunded",
     "returned",
 ]
+PAYMENT_STATUSES = ["pending", "paid", "failed", "refunded", "unpaid"]
 PROCESSING_STATUSES = ["confirmed", "packed", "shipping"]
 REVENUE_STATUSES = ["confirmed", "packed", "shipping", "completed"]
 LOW_STOCK_DEFAULT = 5

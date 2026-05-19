@@ -2,6 +2,11 @@ import json
 import threading
 from datetime import datetime
 
+from modules.bank_transfer import (
+    bank_transfer_content,
+    bank_transfer_enabled,
+    build_bank_transfer_instructions,
+)
 from modules.cart import clear_cart, get_cart_snapshot
 from modules.customer_account import ensure_account_tables, get_address_by_id, get_default_address
 from modules.db import _get_db
@@ -163,10 +168,12 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
     payment_method = (form_data.get("payment_method") or "cod").strip().lower()
     shipping_method = (form_data.get("shipping_method") or "").strip()
 
-    if payment_method not in {"cod", "vnpay"}:
+    if payment_method not in {"cod", "vnpay", "bank_transfer"}:
         return {"ok": False, "error": "Phương thức thanh toán không hợp lệ."}
     if payment_method == "vnpay" and not vnpay_enabled():
         return {"ok": False, "error": "VNPay chưa được cấu hình."}
+    if payment_method == "bank_transfer" and not bank_transfer_enabled():
+        return {"ok": False, "error": "Chuyển khoản ngân hàng chưa được cấu hình."}
     if not recipient_name:
         return {"ok": False, "error": "Vui lòng nhập tên người nhận."}
     if not email or "@" not in email:
@@ -221,6 +228,9 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
             full_notes = f"{full_notes}\n{coupon_text}".strip() if full_notes else coupon_text
         shipping_note = f"Vận chuyển: {shipping_quote['carrier_label']} - {shipping_quote['service_label']}"
         full_notes = f"{full_notes}\n{shipping_note}".strip() if full_notes else shipping_note
+        if payment_method == "bank_transfer":
+            transfer_note = f"Thanh toán chuyển khoản: {bank_transfer_content(order_number)}"
+            full_notes = f"{full_notes}\n{transfer_note}".strip() if full_notes else transfer_note
 
         cur = conn.execute(
             """
@@ -332,6 +342,20 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
                 amount=order_total,
                 payload={"phase": "redirect_created"},
             )
+        elif payment_method == "bank_transfer" and order_total > 0:
+            _log_payment(
+                conn,
+                order_id=order_id,
+                gateway="bank_transfer",
+                status="pending",
+                source="checkout",
+                txn_ref=order_number,
+                amount=order_total,
+                payload={
+                    "transfer_content": bank_transfer_content(order_number),
+                    "phase": "instructions_created",
+                },
+            )
         elif order_total <= 0:
             conn.execute(
                 """
@@ -393,6 +417,29 @@ def get_order_details(order_number):
     ).fetchall()
     conn.close()
     return order, items
+
+
+def order_has_bank_transfer(order_id):
+    ensure_checkout_tables()
+    conn = _get_db()
+    row = conn.execute(
+        """
+        SELECT id
+        FROM payment_transactions
+        WHERE order_id = ? AND gateway = 'bank_transfer'
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (order_id,),
+    ).fetchone()
+    conn.close()
+    return row is not None
+
+
+def get_bank_transfer_instructions(order):
+    if order is None or not order_has_bank_transfer(order["id"]):
+        return None
+    return build_bank_transfer_instructions(order)
 
 
 def send_order_status_update(order_id, status_note=None):
@@ -678,6 +725,7 @@ def _log_payment(
     order_id,
     status,
     source,
+    gateway="vnpay",
     txn_ref=None,
     transaction_no=None,
     amount=0,
@@ -688,10 +736,11 @@ def _log_payment(
         INSERT INTO payment_transactions (
             order_id, gateway, status, source, txn_ref, transaction_no, amount, payload_json, created_at
         )
-        VALUES (?, 'vnpay', ?, ?, ?, ?, ?, ?, ?)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             order_id,
+            gateway,
             status,
             source,
             txn_ref,

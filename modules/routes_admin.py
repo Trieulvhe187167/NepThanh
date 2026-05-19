@@ -18,6 +18,7 @@ from modules.config import (
     BASE_DIR,
     LOW_STOCK_DEFAULT,
     ORDER_STATUSES,
+    PAYMENT_STATUSES,
     PROCESSING_STATUSES,
     REVENUE_STATUSES,
     ROLE_PERMISSIONS,
@@ -26,6 +27,8 @@ from modules.checkout import (
     _ORDER_CANCEL_STATUSES,
     _deduct_restored_stock_for_order,
     _restore_stock_for_order,
+    ensure_checkout_tables,
+    get_bank_transfer_instructions,
     send_order_status_update,
 )
 from modules.data_access import invalidate_content_cache
@@ -969,6 +972,7 @@ def register_admin_routes(app):
     @app.route("/admin/orders/<int:order_id>", methods=["GET", "POST"])
     @admin_required("orders")
     def admin_order_detail(order_id):
+        ensure_checkout_tables()
         conn = _get_db()
         order = conn.execute("SELECT * FROM orders WHERE id = ?", (order_id,)).fetchone()
         if order is None:
@@ -978,6 +982,7 @@ def register_admin_routes(app):
         status_email_note = None
         if request.method == "POST":
             new_status = request.form.get("status")
+            new_payment_status = request.form.get("payment_status")
             note = request.form.get("note", "").strip()
             shipping_provider = request.form.get("shipping_provider", "").strip() or None
             tracking_code = request.form.get("tracking_code", "").strip() or None
@@ -1047,6 +1052,34 @@ def register_admin_routes(app):
                     )
                     status_email_note = note or f"Trạng thái đơn đã đổi sang {new_status}"
                     changed = True
+            if new_payment_status in PAYMENT_STATUSES and new_payment_status != order["payment_status"]:
+                conn.execute(
+                    """
+                    UPDATE orders
+                    SET payment_status = ?, updated_at = ?
+                    WHERE id = ?
+                    """,
+                    (new_payment_status, now, order_id),
+                )
+                conn.execute(
+                    """
+                    UPDATE payment_transactions
+                    SET status = ?
+                    WHERE order_id = ? AND gateway = 'bank_transfer'
+                    """,
+                    (new_payment_status, order_id),
+                )
+                payment_note = note or f"Trạng thái thanh toán đã đổi sang {new_payment_status}"
+                conn.execute(
+                    """
+                    INSERT INTO order_status_events (order_id, status, note, admin_id, created_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (order_id, new_status if new_status in ORDER_STATUSES else order["status"], payment_note, admin_id, now),
+                )
+                if not status_email_note:
+                    status_email_note = payment_note
+                changed = True
             if shipping_provider != order["shipping_provider"] or tracking_code != order["tracking_code"]:
                 conn.execute(
                     """
@@ -1102,6 +1135,8 @@ def register_admin_routes(app):
             items=items,
             events=events,
             statuses=ORDER_STATUSES,
+            payment_statuses=PAYMENT_STATUSES,
+            bank_transfer=get_bank_transfer_instructions(order),
             error=error,
         )
 

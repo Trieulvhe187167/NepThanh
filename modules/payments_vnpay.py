@@ -1,8 +1,8 @@
 import hashlib
 import hmac
 import os
-from datetime import datetime, timedelta
-from urllib.parse import urlencode
+from datetime import datetime, timedelta, timezone
+from urllib.parse import quote_plus
 
 
 def vnpay_enabled():
@@ -10,11 +10,11 @@ def vnpay_enabled():
 
 
 def _tmn_code():
-    return (os.environ.get("VNPAY_TMN_CODE") or "").strip()
+    return _clean_env_value(os.environ.get("VNPAY_TMN_CODE"))
 
 
 def _hash_secret():
-    return (os.environ.get("VNPAY_HASH_SECRET") or "").strip()
+    return _clean_env_value(os.environ.get("VNPAY_HASH_SECRET"))
 
 
 def _payment_url():
@@ -24,14 +24,20 @@ def _payment_url():
     ).strip()
 
 
+def _clean_env_value(value):
+    return (value or "").strip().strip('"').strip("'").lstrip("\ufeff").strip()
+
+
 def _canonical_query(params):
     pairs = []
     for key in sorted(params.keys()):
         value = params[key]
         if value is None or value == "":
             continue
-        pairs.append((key, value))
-    return urlencode(pairs)
+        pairs.append(
+            f"{quote_plus(str(key), safe='')}={quote_plus(str(value), safe='')}"
+        )
+    return "&".join(pairs)
 
 
 def _secure_hash(canonical_query):
@@ -45,7 +51,7 @@ def _secure_hash(canonical_query):
 def build_vnpay_payment_url(order_number, amount_vnd, return_url, ip_addr):
     if not vnpay_enabled():
         return None
-    now = datetime.utcnow()
+    now = datetime.now(timezone(timedelta(hours=7)))
     params = {
         "vnp_Version": "2.1.0",
         "vnp_Command": "pay",
@@ -55,7 +61,7 @@ def build_vnpay_payment_url(order_number, amount_vnd, return_url, ip_addr):
         "vnp_CurrCode": "VND",
         "vnp_IpAddr": ip_addr or "127.0.0.1",
         "vnp_Locale": "vn",
-        "vnp_OrderInfo": f"Thanh toán đơn hàng {order_number}",
+        "vnp_OrderInfo": f"Thanh toan don hang {order_number}",
         "vnp_OrderType": "other",
         "vnp_ReturnUrl": return_url,
         "vnp_TxnRef": order_number,

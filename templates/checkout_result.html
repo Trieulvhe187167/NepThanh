@@ -4,24 +4,57 @@
 <section class="checkout-result">
     {% if is_success %}
     <h1>Đặt hàng thành công</h1>
+    {% if bank_transfer %}
+    <p>Đơn hàng đã được ghi nhận. Vui lòng chuyển khoản đúng số tiền và nội dung bên dưới để nhân viên xác nhận thanh toán.</p>
+    {% else %}
     <p>Cảm ơn bạn đã đặt hàng. Chúng tôi đã gửi email xác nhận đơn hàng.</p>
+    {% endif %}
     {% else %}
     <h1>Thanh toán chưa thành công</h1>
     <p>Giao dịch online không thành công. Bạn có thể đặt lại hoặc chọn COD.</p>
     {% endif %}
 
-    {% if order %}
+    {% if bank_transfer %}
+    <div class="cart-block bank-transfer-block">
+        <div class="bank-transfer-qr">
+            <img src="{{ bank_transfer.qr_url }}" alt="QR chuyển khoản {{ order.order_number }}" loading="lazy" />
+        </div>
+        <div>
+            <div class="bank-transfer-guide">
+                <h2>Hướng dẫn thanh toán</h2>
+                <p><span>1</span>Mở ứng dụng ngân hàng hoặc ví điện tử</p>
+                <p><span>2</span>Chọn tính năng <strong>Quét mã QR</strong></p>
+                <p><span>3</span>Kiểm tra thông tin &amp; <strong>Xác nhận</strong></p>
+            </div>
+            <h2>Chuyển khoản ngân hàng</h2>
+            <p class="field-hint">Quét QR bằng ứng dụng ngân hàng hoặc nhập thủ công theo thông tin dưới đây.</p>
+            <div class="bank-transfer-details">
+                <p><span>Ngân hàng</span><strong>{{ bank_transfer.bank_code }}</strong></p>
+                <p><span>Số tài khoản</span><strong>{{ bank_transfer.account_number }}</strong></p>
+                <p><span>Chủ tài khoản</span><strong>{{ bank_transfer.account_name }}</strong></p>
+                <p><span>Số tiền</span><strong>{{ "{:,}".format(bank_transfer.amount) }}&nbsp;₫</strong></p>
+                <p><span>Nội dung</span><strong>{{ bank_transfer.content }}</strong></p>
+                <p><span>Mã đơn</span><strong>{{ order.order_number }}</strong></p>
+                <p><span>Trạng thái đơn</span><strong>{{ order.status }}</strong></p>
+                <p><span>Thanh toán</span><strong>{{ order.payment_status }}</strong></p>
+                <p><span>Tổng tiền</span><strong>{{ "{:,}".format(order.total) }}&nbsp;₫</strong></p>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if order and not bank_transfer %}
     <div class="cart-block cart-totals">
         <p><span>Mã đơn</span><strong>{{ order.order_number }}</strong></p>
         <p><span>Trạng thái đơn</span><strong>{{ order.status }}</strong></p>
         <p><span>Thanh toán</span><strong>{{ order.payment_status }}</strong></p>
-        <p><span>Tổng tiền</span><strong>{{ "{:,}".format(order.total) }} ₫</strong></p>
+        <p><span>Tổng tiền</span><strong>{{ "{:,}".format(order.total) }}&nbsp;₫</strong></p>
     </div>
     {% if items %}
     <div class="cart-block" style="margin-top: 0.8rem;">
         <h2>Sản phẩm</h2>
         {% for item in items %}
-        <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.total_price) }} ₫</strong></p>
+        <p><span>{{ item.product_name }} x{{ item.qty }}</span><strong>{{ "{:,}".format(item.total_price) }}&nbsp;₫</strong></p>
         {% endfor %}
     </div>
     {% endif %}

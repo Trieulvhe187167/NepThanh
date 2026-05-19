@@ -131,6 +131,18 @@ VNPAY_HASH_SECRET=
 VNPAY_PAYMENT_URL=
 ```
 
+### Chuyển khoản ngân hàng / VietQR
+
+```env
+BANK_TRANSFER_BANK_CODE=VCB
+BANK_TRANSFER_ACCOUNT_NUMBER=
+BANK_TRANSFER_ACCOUNT_NAME=
+BANK_TRANSFER_CONTENT_PREFIX=NEPTHANH
+BANK_TRANSFER_QR_TEMPLATE=compact2
+```
+
+`BANK_TRANSFER_ACCOUNT_NUMBER` là biến bắt buộc để bật phương thức chuyển khoản ở checkout. Với Vietcombank, dùng mã ngân hàng `VCB`.
+
 ### GHN
 
 ```env

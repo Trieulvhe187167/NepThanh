@@ -18,25 +18,25 @@
                 <div class="character-sparkles" aria-hidden="true"></div>
                 <div class="character-figure-3d">
                     <div class="character-intro-poster is-visible" data-character-poster>
-                        <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}"
+                        <img src="{{ asset_url(character.image) }}" alt="{{ character.name }}"
                             fetchpriority="high" decoding="async" />
                     </div>
                     {% if character.intro_video %}
                     <video class="character-intro-video is-hidden" data-character-intro-video
-                        data-intro-src="{{ url_for('static', filename=character.intro_video) }}" muted playsinline preload="none"
-                        {% if character.image %}poster="{{ url_for('static', filename=character.image) }}"{% endif %}>
+                        data-intro-src="{{ asset_url(character.intro_video) }}" muted playsinline preload="none"
+                        {% if character.image %}poster="{{ asset_url(character.image) }}"{% endif %}>
                     </video>
                     {% endif %}
                     {% if character.intro_video or character.model_path %}
                     <div class="character-figure-fallback is-hidden" data-character-fallback>
                         {% if character.final_visual_type == "model" %}
-                        <model-viewer data-model-viewer data-model-src="{{ url_for('static', filename=character.final_visual_path) }}"
+                        <model-viewer data-model-viewer data-model-src="{{ asset_url(character.final_visual_path) }}"
                             alt="{{ character.name }}"
                             camera-controls auto-rotate rotation-per-second="18deg" shadow-intensity="1"
                             exposure="1.05" interaction-prompt="none" touch-action="pan-y">
                         </model-viewer>
                     {% else %}
-                        <img src="{{ url_for('static', filename=character.final_visual_path) }}" alt="{{ character.name }}"
+                        <img src="{{ asset_url(character.final_visual_path) }}" alt="{{ character.name }}"
                             loading="lazy" decoding="async" />
                         {% endif %}
                     </div>
@@ -129,7 +129,7 @@
                     </div>
                     <p class="player-status" data-player-status></p>
                     {% if character.audio_url %}
-                    <a class="player-source-link" href="{{ url_for('static', filename=character.audio_url) }}" target="_blank"
+                    <a class="player-source-link" href="{{ asset_url(character.audio_url) }}" target="_blank"
                         rel="noopener">
                         Nghe bản thu gốc
                     </a>
@@ -171,7 +171,7 @@
             {% for item in characters if item.slug != character.slug %}
             <a href="{{ url_for('character_page', slug=item.slug) }}" class="character-avatar-link">
                 <span class="character-avatar-frame">
-                    <img src="{{ url_for('static', filename=item.image) }}" alt="{{ item.name }}" loading="lazy"
+                    <img src="{{ asset_url(item.image) }}" alt="{{ item.name }}" loading="lazy"
                         decoding="async" />
                 </span>
                 <span class="character-avatar-name">{{ item.name }}</span>
@@ -189,7 +189,7 @@
         "nickname": character.nickname or ("Biệt danh của " ~ character.name),
         "story": character.story_text or character.description or character.bio or "Câu chuyện của nhân vật đang được cập nhật.",
         "role": character.role or "Người lưu giữ nét đẹp dân gian Việt Nam.",
-        "audioUrl": character.audio_url or "",
+        "audioUrl": asset_url(character.audio_url) if character.audio_url else "",
         "introVideoUrl": character.intro_video or "",
         "finalVisualType": character.final_visual_type
     } | tojson }}

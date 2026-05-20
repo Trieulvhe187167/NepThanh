@@ -13,10 +13,19 @@ from modules.config import BASE_DIR, UPLOAD_DIR
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
 
 
+def _is_external_url(value):
+    if not value:
+        return False
+    parsed = urllib.parse.urlparse(value.strip())
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
 def _normalize_static_path(value):
     if not value:
         return None
     value = value.strip().replace("\\", "/")
+    if _is_external_url(value):
+        return value
     if value.startswith("/static/"):
         value = value[len("/static/"):]
     elif value.startswith("static/"):
@@ -25,6 +34,8 @@ def _normalize_static_path(value):
 
 
 def _static_path_exists(relative_path):
+    if not relative_path or _is_external_url(relative_path):
+        return False
     return os.path.exists(os.path.join(BASE_DIR, "static", *relative_path.split("/")))
 
 

@@ -4,7 +4,7 @@ Flask application for the Nếp Thanh – Dòng chảy thanh âm Việt projec
 
 from datetime import datetime
 
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, url_for
 from dotenv import load_dotenv
 load_dotenv(override=True)
 
@@ -15,6 +15,7 @@ from modules.db import init_db
 from modules.routes_admin import register_admin_routes
 from modules.routes_chatbot import register_chatbot_routes
 from modules.routes_public import register_public_routes
+from modules.utils import _is_external_url, _normalize_static_path
 
 
 
@@ -37,6 +38,16 @@ def inject_globals():
         "google_enabled": _google_enabled(),
         "cart_count": get_cart_item_count(current_user),
     }
+
+
+@app.template_global()
+def asset_url(path):
+    if not path:
+        return ""
+    normalized = _normalize_static_path(path)
+    if _is_external_url(normalized):
+        return normalized
+    return url_for("static", filename=normalized)
 
 
 register_public_routes(app)

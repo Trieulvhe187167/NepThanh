@@ -82,7 +82,15 @@ def register_public_routes(app):
         featured_products = [product for product in products if product.get("is_featured")]
         if not featured_products:
             featured_products = products[:4]
-        featured_characters = characters[:3]
+        featured_character_slugs = ("chang-khen", "nang-then", "co-cheo")
+        featured_characters = [
+            character
+            for slug in featured_character_slugs
+            for character in characters
+            if character.get("slug") == slug
+        ]
+        if len(featured_characters) < len(featured_character_slugs):
+            featured_characters = characters[:3]
         return render_template(
             "home.html",
             title="Trang chủ – Mặc di sản, sống hiện đại",

@@ -52,8 +52,8 @@
 
         <div class="form-group">
             <label>Ảnh / model nhân vật</label>
-            <input name="image_url" value="{{ character.image_url if character else '' }}" placeholder="images/characters/co-cheo.png hoặc models/characters/co_cheo.glb" />
-            <small class="muted">Nếu để trống, hệ thống tự tìm ảnh/model theo slug trong static/images/characters hoặc static/models/characters.</small>
+            <input name="image_url" value="{{ character.image_url if character else '' }}" placeholder="images/characters/co-cheo.png hoặc https://...blob.../characters/models/co-cheo.glb" />
+            <small class="muted">Có thể nhập ảnh local hoặc URL Blob. Nếu để trống, hệ thống dùng model Blob mặc định theo slug khi có cấu hình.</small>
         </div>
         <div class="form-group">
             <label>Audio giới thiệu</label>
@@ -65,8 +65,8 @@
         </div>
         <div class="form-group">
             <label>Video giới thiệu</label>
-            <input value="videos/characters/{{ character.slug if character else 'slug-nhan-vat' }}.mp4" readonly />
-            <small class="muted">Video đang được tự nhận theo slug. Ví dụ slug <strong>co-cheo</strong> sẽ dùng <strong>static/videos/characters/co-cheo.mp4</strong>.</small>
+            <input value="Blob URL theo slug nếu đã cấu hình, hoặc videos/characters/{{ character.slug if character else 'slug-nhan-vat' }}.mp4" readonly />
+            <small class="muted">Video được hệ thống tự nhận theo slug. Với asset lớn, ưu tiên URL Blob để không làm nặng bundle deploy.</small>
         </div>
 
         <div class="form-group" style="grid-column: 1 / -1;">

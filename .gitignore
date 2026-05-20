@@ -16,3 +16,6 @@ data/chroma_store/
 *.sqlite-wal
 *.sqlite-shm
 *.sqlite-journal
+
+.vercel
+.env*.local

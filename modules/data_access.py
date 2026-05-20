@@ -9,7 +9,12 @@ from modules.promotions import (
     best_promotion_for_price,
     get_product_promotion_map,
 )
-from modules.utils import _find_static_asset, _normalize_static_path, _static_path_exists
+from modules.utils import (
+    _find_static_asset,
+    _is_external_url,
+    _normalize_static_path,
+    _static_path_exists,
+)
 
 
 STATIC_DIR = os.path.join(BASE_DIR, "static")
@@ -18,6 +23,22 @@ _CONTENT_CACHE_TTL_SECONDS = max(
     int((os.environ.get("CONTENT_CACHE_TTL_SECONDS") or "30").strip() or "30"),
 )
 _CONTENT_CACHE = {}
+
+CHARACTER_BLOB_ASSETS = {
+    "anh-hai": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/anh-hai.glb",
+    },
+    "chang-khen": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/chang-khen.glb",
+    },
+    "co-cheo": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/co-cheo.glb",
+        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/co-cheo.mp4",
+    },
+    "nang-then": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/nang-then.glb",
+    },
+}
 
 
 def _character_asset_type(path):
@@ -29,7 +50,7 @@ def _character_asset_type(path):
 
 def _first_existing(candidates):
     for candidate in candidates:
-        if candidate and _static_path_exists(candidate):
+        if candidate and (_is_external_url(candidate) or _static_path_exists(candidate)):
             return candidate
     return None
 
@@ -92,6 +113,8 @@ def _resolve_character_asset_path(candidate):
     normalized = _normalize_static_path(candidate)
     if not normalized:
         return None
+    if _is_external_url(normalized):
+        return normalized
     if _static_path_exists(normalized):
         return normalized
     if "/" not in normalized:
@@ -148,6 +171,8 @@ def _character_preview_for_stem(stem):
 
 
 def _character_preview_for_asset(asset_path, slug):
+    if _is_external_url(asset_path):
+        return _character_preview_for_stem(slug)
     stem = os.path.splitext(os.path.basename(asset_path or ""))[0]
     preview = _character_preview_for_stem(stem)
     if preview:
@@ -156,6 +181,9 @@ def _character_preview_for_asset(asset_path, slug):
 
 
 def _character_intro_video_for_slug(slug):
+    blob_asset = CHARACTER_BLOB_ASSETS.get(slug or "", {}).get("intro_video")
+    if blob_asset:
+        return blob_asset
     stem = slug.replace("-", "_")
     return _first_existing(
         [
@@ -168,6 +196,9 @@ def _character_intro_video_for_slug(slug):
 
 
 def _character_model_for_slug(slug):
+    blob_asset = CHARACTER_BLOB_ASSETS.get(slug or "", {}).get("model")
+    if blob_asset:
+        return blob_asset
     return _first_existing(
         [
             f"models/characters/{slug.replace('-', '_')}.glb",
@@ -221,7 +252,9 @@ def _map_character(row):
     bio = " ".join(part for part in bio_parts if part)
     audio_source = row["audio_url"] or row["music_sample_url"]
     requested_asset = _resolve_character_asset_path(row["image_url"]) if row["image_url"] else None
-    requested_asset_exists = requested_asset and _static_path_exists(requested_asset)
+    requested_asset_exists = requested_asset and (
+        _is_external_url(requested_asset) or _static_path_exists(requested_asset)
+    )
     requested_asset_type = _character_asset_type(requested_asset) if requested_asset_exists else None
     model_path = requested_asset if requested_asset_type == "model" else _character_model_for_slug(row["slug"])
     slug_image = _character_image_for_slug(row["slug"])

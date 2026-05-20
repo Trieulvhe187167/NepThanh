@@ -4,6 +4,11 @@ import sqlite3
 from pathlib import Path
 
 try:
+    from dotenv import load_dotenv
+except ImportError:
+    load_dotenv = None
+
+try:
     import libsql
 except ImportError as exc:
     raise SystemExit(
@@ -12,6 +17,13 @@ except ImportError as exc:
 
 
 BATCH_SIZE = 500
+
+
+def load_env_files():
+    if load_dotenv is None:
+        return
+    load_dotenv(".env.local")
+    load_dotenv(".env")
 
 
 def parse_args():
@@ -57,6 +69,10 @@ def connect_source(path):
 
 
 def connect_target(replica_path, url, token):
+    for suffix in ("", "-shm", "-wal", ".meta", "-meta"):
+        stale_path = Path(f"{replica_path}{suffix}")
+        if stale_path.exists():
+            stale_path.unlink()
     conn = libsql.connect(replica_path, sync_url=url, auth_token=token)
     conn.sync()
     return conn
@@ -213,6 +229,7 @@ def migrate(source_path, replica_path, url, token, reset):
 
 
 def main():
+    load_env_files()
     args = parse_args()
     source_path = Path(args.source).resolve()
     replica_path = Path(args.replica_path).resolve()

@@ -43,6 +43,9 @@ CHARACTER_BLOB_ASSETS = {
         "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/nang-then.glb",
         "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/nang-then-v2.mp4",
     },
+    "chu-xam": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/chu-xam.glb",
+    },
 }
 
 

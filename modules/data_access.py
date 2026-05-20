@@ -26,17 +26,22 @@ _CONTENT_CACHE = {}
 
 CHARACTER_BLOB_ASSETS = {
     "anh-hai": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/anh-hai.glb",
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/anh-hai-v2.glb",
+    },
+    "be-roi": {
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/be-roi.glb",
     },
     "chang-khen": {
         "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/chang-khen.glb",
+        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/chang-khen.mp4",
     },
     "co-cheo": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/co-cheo.glb",
+        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/co-cheo-v2.glb",
         "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/co-cheo.mp4",
     },
     "nang-then": {
         "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/nang-then.glb",
+        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/nang-then-v2.mp4",
     },
 }
 

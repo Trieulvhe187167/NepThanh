@@ -43,6 +43,7 @@ ROLE_PERMISSIONS = {
         "inventory",
         "customers",
         "content",
+        "characters",
         "marketing",
         "qr",
         "reports",
@@ -51,6 +52,6 @@ ROLE_PERMISSIONS = {
     },
     "orders": {"dashboard", "orders", "customers", "reports"},
     "products": {"dashboard", "products", "inventory"},
-    "content": {"dashboard", "content", "marketing", "qr"},
+    "content": {"dashboard", "content", "characters", "marketing", "qr"},
     "marketing": {"dashboard", "marketing", "reports"},
 }

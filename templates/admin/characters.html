@@ -1,15 +1,36 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block content %}
 <div class="admin-card">
-    <a class="btn btn-primary" href="{{ url_for('admin_character_new') }}">Thêm nhân vật</a>
-    <a class="btn btn-secondary" href="{{ url_for('admin_qr') }}">Quản lý QR</a>
+    <form method="get" class="form-grid">
+        <div class="form-group">
+            <label>Tìm kiếm</label>
+            <input name="q" value="{{ query_text }}" placeholder="Tên, slug, biệt danh..." />
+        </div>
+        <div class="form-group">
+            <label>Trạng thái</label>
+            <select name="status">
+                <option value="" {% if not status_filter %}selected{% endif %}>Tất cả</option>
+                <option value="active" {% if status_filter == 'active' %}selected{% endif %}>Đang hiển thị</option>
+                <option value="hidden" {% if status_filter == 'hidden' %}selected{% endif %}>Đang ẩn</option>
+            </select>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <button class="btn btn-secondary" type="submit">Lọc</button>
+        </div>
+        <div class="form-group" style="align-self: end;">
+            <a class="btn btn-primary" href="{{ url_for('admin_character_new') }}">Thêm nhân vật</a>
+        </div>
+    </form>
 </div>
+
 <div class="admin-card" style="margin-top: 1.5rem;">
     <table class="admin-table">
         <thead>
             <tr>
-                <th>Tên</th>
+                <th>Nhân vật</th>
                 <th>Slug</th>
+                <th>Thông tin</th>
+                <th>Liên kết</th>
                 <th>Trạng thái</th>
                 <th></th>
             </tr>
@@ -17,18 +38,36 @@
         <tbody>
             {% for char in characters %}
             <tr>
-                <td>{{ char.name }}</td>
-                <td>{{ char.slug }}</td>
-                <td>{% if char.is_active %}<span class="badge success">Hiển thị</span>{% else %}<span class="badge danger">Ẩn</span>{% endif %}</td>
                 <td>
+                    <strong>{{ char.name }}</strong>
+                    {% if char.nickname %}<div class="muted">{{ char.nickname }}</div>{% endif %}
+                </td>
+                <td>{{ char.slug }}</td>
+                <td>
+                    {% if char.origin %}<div>Xuất xứ: {{ char.origin }}</div>{% endif %}
+                    {% if char.symbol %}<div>Biểu tượng: {{ char.symbol }}</div>{% endif %}
+                </td>
+                <td>
+                    <div>{{ char.product_count }} sản phẩm</div>
+                    <div>{{ char.qr_count }} QR</div>
+                </td>
+                <td>
+                    {% if char.is_active %}
+                    <span class="badge success">Hiển thị</span>
+                    {% else %}
+                    <span class="badge danger">Ẩn</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a class="btn btn-secondary" href="{{ url_for('character_page', slug=char.slug) }}" target="_blank">Xem</a>
                     <a class="btn btn-secondary" href="{{ url_for('admin_character_edit', character_id=char.id) }}">Sửa</a>
-                    <form method="post" action="{{ url_for('admin_character_delete', character_id=char.id) }}" style="display: inline;" onsubmit="return confirm('Xóa nhân vật?')">
+                    <form method="post" action="{{ url_for('admin_character_delete', character_id=char.id) }}" style="display: inline;" onsubmit="return confirm('Xóa nhân vật này?')">
                         <button class="btn btn-danger" type="submit">Xóa</button>
                     </form>
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="4" class="muted">Chưa có nhân vật.</td></tr>
+            <tr><td colspan="6" class="muted">Chưa có nhân vật.</td></tr>
             {% endfor %}
         </tbody>
     </table>

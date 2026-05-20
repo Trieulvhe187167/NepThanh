@@ -3267,8 +3267,7 @@ main.character-main>.container {
 
 .character-intro-poster.is-hidden,
 .character-figure-fallback.is-hidden,
-.character-intro-video.is-hidden,
-.character-intro-canvas.is-hidden {
+.character-intro-video.is-hidden {
     opacity: 0;
     visibility: hidden;
     pointer-events: none;
@@ -3276,8 +3275,7 @@ main.character-main>.container {
 
 .character-intro-poster.is-visible,
 .character-figure-fallback.is-visible,
-.character-intro-video,
-.character-intro-canvas {
+.character-intro-video {
     opacity: 1;
     visibility: visible;
 }
@@ -3286,46 +3284,34 @@ main.character-main>.container {
     animation: viewerHello 1.1s ease-in-out 0.2s 1;
 }
 
-.character-intro-video,
-.character-intro-canvas {
+.character-intro-video {
+    --intro-video-ratio: 9 / 16;
     grid-area: 1 / 1;
-    width: 100%;
-    max-width: 100%;
-    height: var(--character-media-height);
+    width: auto;
+    max-width: min(100%, 460px);
+    height: min(82vh, 740px);
+    max-height: var(--character-media-height);
+    aspect-ratio: var(--intro-video-ratio);
     display: block;
     position: relative;
     z-index: 3;
     border-radius: 28px;
-    object-fit: cover;
+    object-fit: contain;
     overflow: hidden;
     transform: none;
     transform-origin: center center;
     clip-path: inset(0 round 28px);
+    background: transparent;
     filter:
         drop-shadow(0 24px 40px rgba(26, 26, 26, 0.22))
         drop-shadow(0 0 26px rgba(212, 168, 67, 0.18))
-        saturate(0.94)
-        contrast(0.96)
-        brightness(0.92);
+        saturate(1)
+        contrast(1)
+        brightness(1);
 }
 
 .character-intro-video {
     opacity: 0.999;
-}
-
-.character-intro-video.is-canvas-driving {
-    opacity: 0.001;
-    filter: none;
-}
-
-.character-intro-canvas {
-    z-index: 4;
-    pointer-events: none;
-    opacity: 0.96;
-}
-
-.character-intro-canvas:not(.is-active) {
-    opacity: 0;
 }
 
 .character-figure-3d img {
@@ -3420,29 +3406,6 @@ main.character-main>.container {
 .character-intro-start-button:hover {
     transform: translateY(-2px);
     box-shadow: 0 22px 32px rgba(178, 34, 34, 0.26);
-}
-
-.character-greeting-bubble {
-    position: absolute;
-    top: 12%;
-    left: 18%;
-    z-index: 4;
-    padding: 0.8rem 1.1rem;
-    border-radius: 18px;
-    background: rgba(255, 255, 255, 0.95);
-    border: 1px solid rgba(212, 168, 67, 0.55);
-    color: var(--vn-red-dark);
-    font-weight: 700;
-    box-shadow: 0 16px 28px rgba(26, 26, 26, 0.12);
-    opacity: 0;
-    transform: translate3d(-24px, 12px, 0) scale(0.84);
-    animation: greetingBubble 1.1s ease-out 0.36s forwards;
-}
-
-.character-visual-shell.is-greeted .character-greeting-bubble {
-    opacity: 0;
-    transform: translate3d(0, -10px, 0) scale(0.92);
-    transition: opacity 0.35s ease, transform 0.35s ease;
 }
 
 .character-sparkles {
@@ -3983,17 +3946,16 @@ main.character-main>.container {
 
     .character-intro-poster,
     .character-intro-video,
-    .character-intro-canvas,
     .character-figure-fallback {
         width: 100%;
         height: var(--character-media-height);
         clip-path: inset(0 round 24px);
     }
 
-    .character-greeting-bubble {
-        left: 8%;
-        top: 10%;
-        font-size: 0.9rem;
+    .character-intro-video {
+        width: auto;
+        max-width: min(100%, 350px);
+        height: min(72vh, 600px);
     }
 
     .character-intro-start {

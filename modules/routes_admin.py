@@ -1884,80 +1884,125 @@ def register_admin_routes(app):
         invalidate_content_cache()
         return redirect(url_for("admin_promotions"))
 
+    def _character_form_payload():
+        name = request.form.get("name", "").strip()
+        return {
+            "name": name,
+            "slug": request.form.get("slug", "").strip() or _slugify(name),
+            "nickname": request.form.get("nickname", "").strip(),
+            "origin": request.form.get("origin", "").strip(),
+            "personality": request.form.get("personality", "").strip(),
+            "symbol": request.form.get("symbol", "").strip(),
+            "role": request.form.get("role", "").strip(),
+            "story_text": request.form.get("story_text", "").strip(),
+            "audio_url": _normalize_static_path(request.form.get("audio_url", "")),
+            "music_sample_url": _normalize_static_path(request.form.get("music_sample_url", "")),
+            "image_url": _normalize_static_path(request.form.get("image_url", "")),
+            "seo_title": request.form.get("seo_title", "").strip(),
+            "seo_description": request.form.get("seo_description", "").strip(),
+            "is_active": 1 if request.form.get("is_active") else 0,
+        }
+
+    def _character_usage_counts(conn, character_id):
+        product_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM products WHERE character_id = ?",
+            (character_id,),
+        ).fetchone()["count"]
+        qr_count = conn.execute(
+            "SELECT COUNT(*) AS count FROM qr_tags WHERE character_id = ?",
+            (character_id,),
+        ).fetchone()["count"]
+        return product_count, qr_count
+
     @app.route("/admin/characters")
-    @admin_required("qr")
+    @admin_required("characters")
     def admin_characters():
+        query_text = request.args.get("q", "").strip()
+        status_filter = request.args.get("status", "").strip()
         conn = _get_db()
-        characters = conn.execute("SELECT * FROM characters ORDER BY created_at DESC").fetchall()
+        sql = """
+            SELECT characters.*,
+                   COUNT(DISTINCT products.id) AS product_count,
+                   COUNT(DISTINCT qr_tags.id) AS qr_count
+            FROM characters
+            LEFT JOIN products ON products.character_id = characters.id
+            LEFT JOIN qr_tags ON qr_tags.character_id = characters.id
+            WHERE 1 = 1
+        """
+        params = []
+        if query_text:
+            like = f"%{query_text}%"
+            sql += " AND (characters.name LIKE ? OR characters.slug LIKE ? OR characters.nickname LIKE ?)"
+            params.extend([like, like, like])
+        if status_filter == "active":
+            sql += " AND characters.is_active = 1"
+        elif status_filter == "hidden":
+            sql += " AND characters.is_active = 0"
+        sql += " GROUP BY characters.id ORDER BY characters.created_at DESC"
+        characters = conn.execute(sql, params).fetchall()
         conn.close()
         return render_template(
             "admin/characters.html",
-            title="Nhân vật",
-            section="qr",
+            title="Quản lý nhân vật",
+            section="characters",
             characters=characters,
+            query_text=query_text,
+            status_filter=status_filter,
         )
 
     @app.route("/admin/characters/new", methods=["GET", "POST"])
-    @admin_required("qr")
+    @admin_required("characters")
     def admin_character_new():
         conn = _get_db()
         error = None
         character = None
         if request.method == "POST":
-            name = request.form.get("name", "").strip()
-            slug = request.form.get("slug", "").strip() or _slugify(name)
-            nickname = request.form.get("nickname", "").strip()
-            origin = request.form.get("origin", "").strip()
-            personality = request.form.get("personality", "").strip()
-            symbol = request.form.get("symbol", "").strip()
-            role_text = request.form.get("role", "").strip()
-            story_text = request.form.get("story_text", "").strip()
-            audio_url = request.form.get("audio_url", "").strip()
-            image_url = _normalize_static_path(request.form.get("image_url", ""))
-            seo_title = request.form.get("seo_title", "").strip()
-            seo_description = request.form.get("seo_description", "").strip()
-            is_active = 1 if request.form.get("is_active") else 0
-            if not name:
+            character = _character_form_payload()
+            if not character["name"]:
                 error = "Vui lòng nhập tên nhân vật."
-            elif not _validate_unique_slug(conn, "characters", slug):
+            elif not character["slug"]:
+                error = "Vui lòng nhập slug nhân vật."
+            elif not _validate_unique_slug(conn, "characters", character["slug"]):
                 error = "Slug đã tồn tại."
             else:
-                conn.execute(
-                    """
-                    INSERT INTO characters (slug, name, nickname, origin, personality, symbol, role, story_text, audio_url, seo_title, seo_description, created_at, image_url, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
-                        slug,
-                        name,
-                        nickname,
-                        origin,
-                        personality,
-                        symbol,
-                        role_text,
-                        story_text,
-                        audio_url,
-                        seo_title,
-                        seo_description,
-                        datetime.utcnow().isoformat(),
-                        image_url,
-                        is_active,
-                    ),
+                now = datetime.utcnow().isoformat()
+                fields = (
+                    "slug", "name", "nickname", "origin", "personality", "symbol", "role",
+                    "story_text", "audio_url", "music_sample_url", "seo_title",
+                    "seo_description", "image_url", "is_active",
                 )
+                cur = conn.execute(
+                    f"""
+                    INSERT INTO characters ({", ".join(fields)}, created_at)
+                    VALUES ({", ".join("?" for _ in fields)}, ?)
+                    """,
+                    tuple(character[field] for field in fields) + (now,),
+                )
+                character_id = cur.lastrowid
                 conn.commit()
+                invalidate_content_cache()
+                _log_action(
+                    _get_current_user()["id"],
+                    "create",
+                    "character",
+                    character_id,
+                    {"name": character["name"], "slug": character["slug"]},
+                )
                 conn.close()
-                return redirect(url_for("admin_characters"))
+                return redirect(url_for("admin_character_edit", character_id=character_id))
         conn.close()
         return render_template(
             "admin/character_form.html",
             title="Thêm nhân vật",
-            section="qr",
+            section="characters",
             character=character,
             error=error,
+            product_count=0,
+            qr_count=0,
         )
 
     @app.route("/admin/characters/<int:character_id>/edit", methods=["GET", "POST"])
-    @admin_required("qr")
+    @admin_required("characters")
     def admin_character_edit(character_id):
         conn = _get_db()
         character = conn.execute(
@@ -1967,68 +2012,100 @@ def register_admin_routes(app):
             conn.close()
             abort(404)
         error = None
+        if request.args.get("delete_error"):
+            error = "Không thể xóa nhân vật đang gắn với sản phẩm hoặc mã QR. Hãy chuyển sản phẩm/QR sang nhân vật khác trước."
         if request.method == "POST":
-            name = request.form.get("name", "").strip()
-            slug = request.form.get("slug", "").strip() or _slugify(name)
-            nickname = request.form.get("nickname", "").strip()
-            origin = request.form.get("origin", "").strip()
-            personality = request.form.get("personality", "").strip()
-            symbol = request.form.get("symbol", "").strip()
-            role_text = request.form.get("role", "").strip()
-            story_text = request.form.get("story_text", "").strip()
-            audio_url = request.form.get("audio_url", "").strip()
-            image_url = _normalize_static_path(request.form.get("image_url", ""))
-            seo_title = request.form.get("seo_title", "").strip()
-            seo_description = request.form.get("seo_description", "").strip()
-            is_active = 1 if request.form.get("is_active") else 0
-            if not name:
+            form_character = _character_form_payload()
+            if not form_character["name"]:
                 error = "Vui lòng nhập tên nhân vật."
-            elif not _validate_unique_slug(conn, "characters", slug, exclude_id=character_id):
+                character = form_character
+                character["id"] = character_id
+            elif not form_character["slug"]:
+                error = "Vui lòng nhập slug nhân vật."
+                character = form_character
+                character["id"] = character_id
+            elif not _validate_unique_slug(conn, "characters", form_character["slug"], exclude_id=character_id):
                 error = "Slug đã tồn tại."
+                character = form_character
+                character["id"] = character_id
             else:
                 conn.execute(
                     """
                     UPDATE characters
-                    SET slug = ?, name = ?, nickname = ?, origin = ?, personality = ?, symbol = ?, role = ?, story_text = ?, audio_url = ?, seo_title = ?, seo_description = ?, image_url = ?, is_active = ?
+                    SET slug = ?, name = ?, nickname = ?, origin = ?, personality = ?,
+                        symbol = ?, role = ?, story_text = ?, audio_url = ?,
+                        music_sample_url = ?, seo_title = ?, seo_description = ?,
+                        image_url = ?, is_active = ?
                     WHERE id = ?
                     """,
                     (
-                        slug,
-                        name,
-                        nickname,
-                        origin,
-                        personality,
-                        symbol,
-                        role_text,
-                        story_text,
-                        audio_url,
-                        seo_title,
-                        seo_description,
-                        image_url,
-                        is_active,
+                        form_character["slug"],
+                        form_character["name"],
+                        form_character["nickname"],
+                        form_character["origin"],
+                        form_character["personality"],
+                        form_character["symbol"],
+                        form_character["role"],
+                        form_character["story_text"],
+                        form_character["audio_url"],
+                        form_character["music_sample_url"],
+                        form_character["seo_title"],
+                        form_character["seo_description"],
+                        form_character["image_url"],
+                        form_character["is_active"],
                         character_id,
                     ),
                 )
                 conn.commit()
+                invalidate_content_cache()
+                _log_action(
+                    _get_current_user()["id"],
+                    "update",
+                    "character",
+                    character_id,
+                    {"name": form_character["name"], "slug": form_character["slug"]},
+                )
                 character = conn.execute(
                     "SELECT * FROM characters WHERE id = ?", (character_id,)
                 ).fetchone()
+        product_count, qr_count = _character_usage_counts(conn, character_id)
         conn.close()
         return render_template(
             "admin/character_form.html",
             title="Chỉnh sửa nhân vật",
-            section="qr",
+            section="characters",
             character=character,
             error=error,
+            product_count=product_count,
+            qr_count=qr_count,
         )
 
     @app.route("/admin/characters/<int:character_id>/delete", methods=["POST"])
-    @admin_required("qr")
+    @admin_required("characters")
     def admin_character_delete(character_id):
         conn = _get_db()
+        character = conn.execute(
+            "SELECT id, name, slug FROM characters WHERE id = ?",
+            (character_id,),
+        ).fetchone()
+        if character is None:
+            conn.close()
+            abort(404)
+        product_count, qr_count = _character_usage_counts(conn, character_id)
+        if product_count or qr_count:
+            conn.close()
+            return redirect(url_for("admin_character_edit", character_id=character_id, delete_error=1))
         conn.execute("DELETE FROM characters WHERE id = ?", (character_id,))
         conn.commit()
         conn.close()
+        invalidate_content_cache()
+        _log_action(
+            _get_current_user()["id"],
+            "delete",
+            "character",
+            character_id,
+            {"name": character["name"], "slug": character["slug"]},
+        )
         return redirect(url_for("admin_characters"))
 
     def _load_qr_manager_options():

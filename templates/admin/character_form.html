@@ -1,49 +1,74 @@
-﻿{% extends "admin/base.html" %}
+{% extends "admin/base.html" %}
 {% block content %}
 {% if error %}<p class="notice">{{ error }}</p>{% endif %}
+
 <div class="admin-card">
+    <div class="admin-actions" style="justify-content: space-between; margin-bottom: 1rem;">
+        <a class="btn btn-secondary" href="{{ url_for('admin_characters') }}">Quay lại danh sách</a>
+        {% if character and character.id %}
+        <a class="btn btn-secondary" href="{{ url_for('character_page', slug=character.slug) }}" target="_blank">Xem ngoài site</a>
+        {% endif %}
+    </div>
+
     <form method="post" class="form-grid">
         <div class="form-group">
-            <label>Tên</label>
+            <label>Tên nhân vật</label>
             <input name="name" value="{{ character.name if character else '' }}" required />
         </div>
         <div class="form-group">
             <label>Slug</label>
-            <input name="slug" value="{{ character.slug if character else '' }}" />
+            <input name="slug" value="{{ character.slug if character else '' }}" placeholder="co-cheo" />
         </div>
         <div class="form-group">
             <label>Biệt danh</label>
             <input name="nickname" value="{{ character.nickname if character else '' }}" />
         </div>
         <div class="form-group">
-            <label>Origin</label>
+            <label>Trạng thái</label>
+            <label><input type="checkbox" name="is_active" {% if not character or character.is_active %}checked{% endif %} /> Hiển thị trên website</label>
+        </div>
+
+        <div class="form-group">
+            <label>Xuất xứ</label>
             <input name="origin" value="{{ character.origin if character else '' }}" />
         </div>
         <div class="form-group">
-            <label>Personality</label>
+            <label>Tính cách</label>
             <input name="personality" value="{{ character.personality if character else '' }}" />
         </div>
         <div class="form-group">
-            <label>Symbol</label>
+            <label>Biểu tượng</label>
             <input name="symbol" value="{{ character.symbol if character else '' }}" />
         </div>
         <div class="form-group">
-            <label>Role</label>
+            <label>Vai trò</label>
             <input name="role" value="{{ character.role if character else '' }}" />
         </div>
-        <div class="form-group">
-            <label>Audio URL</label>
-            <input name="audio_url" value="{{ character.audio_url if character else '' }}" />
-        </div>
-        <div class="form-group">
-            <label>Image URL</label>
-            <input name="image_url" value="{{ character.image_url if character else '' }}" />
-            <small>Khuyen nghi dung path tuong doi nhu `images/characters/anh_hai.png`. Neu nhap sai duoi file, he thong se tu tim anh theo slug trong `images/characters/`.</small>
-        </div>
+
         <div class="form-group" style="grid-column: 1 / -1;">
-            <label>Story</label>
-            <textarea name="story_text">{{ character.story_text if character else '' }}</textarea>
+            <label>Câu chuyện</label>
+            <textarea name="story_text" rows="8">{{ character.story_text if character else '' }}</textarea>
         </div>
+
+        <div class="form-group">
+            <label>Ảnh / model nhân vật</label>
+            <input name="image_url" value="{{ character.image_url if character else '' }}" placeholder="images/characters/co-cheo.png hoặc models/characters/co_cheo.glb" />
+            <small class="muted">Nếu để trống, hệ thống tự tìm ảnh/model theo slug trong static/images/characters hoặc static/models/characters.</small>
+        </div>
+        <div class="form-group">
+            <label>Audio giới thiệu</label>
+            <input name="audio_url" value="{{ character.audio_url if character else '' }}" placeholder="audio/characters/co-cheo.mp3" />
+        </div>
+        <div class="form-group">
+            <label>Music sample URL</label>
+            <input name="music_sample_url" value="{{ character.music_sample_url if character else '' }}" placeholder="audio/characters/co-cheo-sample.mp3" />
+        </div>
+        <div class="form-group">
+            <label>Video giới thiệu</label>
+            <input value="videos/characters/{{ character.slug if character else 'slug-nhan-vat' }}.mp4" readonly />
+            <small class="muted">Video đang được tự nhận theo slug. Ví dụ slug <strong>co-cheo</strong> sẽ dùng <strong>static/videos/characters/co-cheo.mp4</strong>.</small>
+        </div>
+
         <div class="form-group" style="grid-column: 1 / -1;">
             <label>SEO Title</label>
             <input name="seo_title" value="{{ character.seo_title if character else '' }}" />
@@ -52,11 +77,29 @@
             <label>SEO Description</label>
             <textarea name="seo_description">{{ character.seo_description if character else '' }}</textarea>
         </div>
+
+        {% if character and character.id %}
         <div class="form-group">
-            <label><input type="checkbox" name="is_active" {% if not character or character.is_active %}checked{% endif %} /> Hiển thị</label>
+            <label>Sản phẩm đang gắn</label>
+            <input value="{{ product_count }} sản phẩm" readonly />
         </div>
+        <div class="form-group">
+            <label>Mã QR đang gắn</label>
+            <input value="{{ qr_count }} QR" readonly />
+        </div>
+        {% endif %}
+
         <div class="form-group" style="grid-column: 1 / -1;">
-            <button class="btn btn-primary" type="submit">Lưu</button>
+            <button class="btn btn-primary" type="submit">Lưu nhân vật</button>
+            {% if character and character.id %}
+            <button
+                class="btn btn-danger"
+                type="submit"
+                formaction="{{ url_for('admin_character_delete', character_id=character.id) }}"
+                onclick="return confirm('Xóa nhân vật này? Chỉ xóa được khi không còn sản phẩm hoặc QR đang gắn.')">
+                Xóa nhân vật
+            </button>
+            {% endif %}
         </div>
     </form>
 </div>

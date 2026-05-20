@@ -33,7 +33,7 @@ _TURSO_SYNC_INTERVAL_SECONDS = max(
     int((os.environ.get("TURSO_SYNC_INTERVAL_SECONDS") or "15").strip() or "15"),
 )
 _LAST_TURSO_SYNC_AT = 0.0
-_SCHEMA_BOOTSTRAP_VERSION = "2026-03-27-1"
+_SCHEMA_BOOTSTRAP_VERSION = "2026-05-20-characters"
 
 
 class ManagedConnection:
@@ -627,6 +627,17 @@ def init_db():
     _ensure_column(conn, "products", "is_featured", "INTEGER DEFAULT 0")
     _ensure_column(conn, "products", "collection", "TEXT")
     _ensure_column(conn, "product_variants", "low_stock_threshold", "INTEGER DEFAULT 5")
+    _ensure_column(conn, "characters", "nickname", "TEXT")
+    _ensure_column(conn, "characters", "origin", "TEXT")
+    _ensure_column(conn, "characters", "personality", "TEXT")
+    _ensure_column(conn, "characters", "symbol", "TEXT")
+    _ensure_column(conn, "characters", "role", "TEXT")
+    _ensure_column(conn, "characters", "story_text", "TEXT")
+    _ensure_column(conn, "characters", "audio_url", "TEXT")
+    _ensure_column(conn, "characters", "music_sample_url", "TEXT")
+    _ensure_column(conn, "characters", "seo_title", "TEXT")
+    _ensure_column(conn, "characters", "seo_description", "TEXT")
+    _ensure_column(conn, "characters", "image_url", "TEXT")
     _ensure_column(conn, "characters", "is_active", "INTEGER DEFAULT 1")
     _ensure_column(conn, "orders", "shipping_provider", "TEXT")
     _ensure_column(conn, "orders", "tracking_code", "TEXT")

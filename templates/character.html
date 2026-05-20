@@ -16,7 +16,6 @@
             <div class="character-visual-shell" data-character-viewer>
                 <div class="character-back-glow" aria-hidden="true"></div>
                 <div class="character-sparkles" aria-hidden="true"></div>
-                <div class="character-greeting-bubble" aria-hidden="true">Xin chào!</div>
                 <div class="character-figure-3d">
                     <div class="character-intro-poster is-visible" data-character-poster>
                         <img src="{{ url_for('static', filename=character.image) }}" alt="{{ character.name }}"
@@ -27,7 +26,6 @@
                         data-intro-src="{{ url_for('static', filename=character.intro_video) }}" muted playsinline preload="none"
                         {% if character.image %}poster="{{ url_for('static', filename=character.image) }}"{% endif %}>
                     </video>
-                    <canvas class="character-intro-canvas is-hidden" data-character-intro-canvas aria-hidden="true"></canvas>
                     {% endif %}
                     {% if character.intro_video or character.model_path %}
                     <div class="character-figure-fallback is-hidden" data-character-fallback>
@@ -209,8 +207,6 @@
         var viewer = root.querySelector("[data-character-viewer]");
         var sparkles = root.querySelector(".character-sparkles");
         var introVideo = root.querySelector("[data-character-intro-video]");
-        var introCanvas = root.querySelector("[data-character-intro-canvas]");
-        var introCanvasContext = introCanvas && introCanvas.getContext ? introCanvas.getContext("2d", { willReadFrequently: true }) : null;
         var introStartGate = root.querySelector("[data-intro-start]");
         var introStartButton = root.querySelector("[data-intro-start-button]");
         var posterFigure = root.querySelector("[data-character-poster]");
@@ -224,8 +220,6 @@
         var playerCard = root.querySelector('[data-reveal="player"]');
         var prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
         var hasInteractiveIntro = Boolean(introVideo || fallbackFigure);
-        var introCanvasFrameId = 0;
-        var introCanvasEnabled = false;
         var introStartPromise = null;
         var introStartResolved = false;
         var modelViewerScriptPromise = null;
@@ -537,130 +531,11 @@
             return introStartPromise;
         }
 
-        function resizeIntroCanvas() {
-            if (!introVideo || !introCanvas || !introCanvasContext || !introVideo.videoWidth || !introVideo.videoHeight) {
-                return false;
-            }
-
-            var rect = introCanvas.getBoundingClientRect();
-            var scale = window.devicePixelRatio || 1;
-            var width = Math.max(1, Math.round(rect.width * scale));
-            var height = Math.max(1, Math.round(rect.height * scale));
-
-            if (introCanvas.width !== width || introCanvas.height !== height) {
-                introCanvas.width = width;
-                introCanvas.height = height;
-            }
-
-            return true;
-        }
-
-        function stopIntroCanvasKeying() {
-            introCanvasEnabled = false;
-            if (introCanvasFrameId) {
-                window.cancelAnimationFrame(introCanvasFrameId);
-                introCanvasFrameId = 0;
-            }
-            if (introVideo) {
-                introVideo.classList.remove("is-canvas-driving");
-            }
-            if (introCanvas) {
-                introCanvas.classList.remove("is-active");
-            }
-        }
-
-        function startIntroCanvasKeying() {
-            if (!introVideo || !introCanvas || !introCanvasContext) {
-                return false;
-            }
-
-            if (!resizeIntroCanvas()) {
-                return false;
-            }
-
-            introCanvasEnabled = true;
-            introCanvas.classList.add("is-active");
-            introVideo.classList.add("is-canvas-driving");
-
-            function renderFrame() {
-                if (!introCanvasEnabled || !introCanvasContext || !introCanvas) {
-                    return;
-                }
-
-                if (introVideo.readyState >= 2 && !introVideo.paused && !introVideo.ended) {
-                    var width = introCanvas.width;
-                    var height = introCanvas.height;
-                    var sourceWidth = introVideo.videoWidth;
-                    var sourceHeight = introVideo.videoHeight;
-                    var sourceRatio = sourceWidth / sourceHeight;
-                    var targetRatio = width / height;
-                    var cropWidth = sourceWidth;
-                    var cropHeight = sourceHeight;
-                    var cropX = 0;
-                    var cropY = 0;
-
-                    if (sourceRatio > targetRatio) {
-                        cropWidth = sourceHeight * targetRatio;
-                        cropX = (sourceWidth - cropWidth) / 2;
-                    } else if (sourceRatio < targetRatio) {
-                        cropHeight = sourceWidth / targetRatio;
-                        cropY = (sourceHeight - cropHeight) / 2;
-                    }
-
-                    introCanvasContext.clearRect(0, 0, width, height);
-                    introCanvasContext.drawImage(
-                        introVideo,
-                        cropX,
-                        cropY,
-                        cropWidth,
-                        cropHeight,
-                        0,
-                        0,
-                        width,
-                        height
-                    );
-
-                    var frame = introCanvasContext.getImageData(0, 0, width, height);
-                    var data = frame.data;
-
-                    for (var index = 0; index < data.length; index += 4) {
-                        var red = data[index];
-                        var green = data[index + 1];
-                        var blue = data[index + 2];
-                        var maxChannel = Math.max(red, green, blue);
-                        var minChannel = Math.min(red, green, blue);
-                        var spread = maxChannel - minChannel;
-
-                        if (maxChannel <= 14 && spread <= 12) {
-                            data[index + 3] = 0;
-                        } else if (maxChannel <= 38 && spread <= 18) {
-                            var fade = (maxChannel - 14) / 24;
-                            data[index + 3] = Math.min(data[index + 3], Math.round(255 * fade * fade));
-                        }
-                    }
-
-                    introCanvasContext.putImageData(frame, 0, 0);
-                }
-
-                introCanvasFrameId = window.requestAnimationFrame(renderFrame);
-            }
-
-            if (introCanvasFrameId) {
-                window.cancelAnimationFrame(introCanvasFrameId);
-            }
-            introCanvasFrameId = window.requestAnimationFrame(renderFrame);
-            return true;
-        }
-
         function revealFallbackFigure() {
-            stopIntroCanvasKeying();
             hideIntroStartGate();
             if (introVideo) {
                 introVideo.pause();
                 introVideo.classList.add("is-hidden");
-            }
-            if (introCanvas) {
-                introCanvas.classList.add("is-hidden");
             }
             if (fallbackFigure) {
                 ensureModelViewerLoaded().catch(function () {
@@ -696,8 +571,8 @@
                     introVideo.muted = startMuted !== false;
                     introVideo.volume = 1;
                     introVideo.classList.remove("is-hidden");
-                    if (introCanvas) {
-                        introCanvas.classList.remove("is-hidden");
+                    if (introVideo.videoWidth && introVideo.videoHeight) {
+                        introVideo.style.setProperty("--intro-video-ratio", introVideo.videoWidth + " / " + introVideo.videoHeight);
                     }
 
                     return new Promise(function (resolve) {
@@ -724,12 +599,6 @@
 
                         introVideo.addEventListener("ended", onEnded, { once: true });
                         introVideo.addEventListener("error", onError, { once: true });
-
-                        if (introVideo.readyState >= 1) {
-                            startIntroCanvasKeying();
-                        } else {
-                            introVideo.addEventListener("loadedmetadata", startIntroCanvasKeying, { once: true });
-                        }
 
                         var playPromise = introVideo.play();
                         if (playPromise && typeof playPromise.then === "function") {
@@ -1178,13 +1047,13 @@
 
             roleCard.classList.add("is-visible");
             await wait(prefersReducedMotion ? 0 : 220);
+            await introPlayback;
 
             playerCard.hidden = false;
             window.requestAnimationFrame(function () {
                 playerCard.classList.add("is-visible");
             });
             player.autoPlay();
-            await introPlayback;
         }
 
         runSequence();

@@ -3652,6 +3652,11 @@ main.character-main>.container {
     box-shadow: 0 14px 24px rgba(178, 34, 34, 0.18);
 }
 
+.player-control.compact {
+    min-width: 3.4rem;
+    padding-inline: 0.9rem;
+}
+
 .player-control:hover {
     transform: translateY(-2px);
 }

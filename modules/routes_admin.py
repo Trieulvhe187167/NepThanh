@@ -4,14 +4,13 @@ import os
 from datetime import date, datetime, timedelta
 
 from flask import abort, redirect, render_template, request, send_file, session, url_for
-from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.security import generate_password_hash
 
 from modules.auth import (
     _admin_email_allowlist,
     _create_user,
     _get_current_user,
     _get_user_by_email,
-    _is_admin_user,
     admin_required,
 )
 from modules.config import (
@@ -130,43 +129,12 @@ def _validate_unique_slug(conn, table, slug, exclude_id=None):
 def register_admin_routes(app):
     @app.route("/admin/login", methods=["GET", "POST"])
     def admin_login():
-        current_user = _get_current_user()
-        if current_user and _is_admin_user(current_user) and not current_user.get("is_blocked"):
-            return redirect(url_for("admin_dashboard"))
-        error = request.args.get("error")
-        next_url = request.args.get("next") or request.form.get("next")
-        if request.method == "POST":
-            email = request.form.get("email", "").strip().lower()
-            password = request.form.get("password", "")
-            user = _get_user_by_email(email) if email else None
-            if not user or not check_password_hash(user["password_hash"], password):
-                error = "Email hoặc mật khẩu không đúng."
-            elif user["is_blocked"]:
-                error = "Tài khoản của bạn đang bị khóa."
-            else:
-                user_info = {
-                    "id": user["id"],
-                    "email": user["email"],
-                    "full_name": user["full_name"],
-                    "role": user["role"],
-                    "is_blocked": user["is_blocked"],
-                }
-                if not _is_admin_user(user_info):
-                    error = "Bạn không có quyền truy cập admin."
-                else:
-                    session["user_id"] = user["id"]
-                    return redirect(next_url or url_for("admin_dashboard"))
-        return render_template(
-            "admin/login.html",
-            title="Admin Login",
-            error=error,
-            next_url=next_url,
-        )
+        return redirect(url_for("home"))
 
     @app.route("/admin/logout")
     def admin_logout():
         session.pop("user_id", None)
-        return redirect(url_for("admin_login"))
+        return redirect(url_for("home"))
 
     @app.route("/admin")
     @admin_required("dashboard")
@@ -1897,6 +1865,7 @@ def register_admin_routes(app):
             "story_text": request.form.get("story_text", "").strip(),
             "audio_url": _normalize_static_path(request.form.get("audio_url", "")),
             "music_sample_url": _normalize_static_path(request.form.get("music_sample_url", "")),
+            "audio_source_url": request.form.get("audio_source_url", "").strip(),
             "image_url": _normalize_static_path(request.form.get("image_url", "")),
             "seo_title": request.form.get("seo_title", "").strip(),
             "seo_description": request.form.get("seo_description", "").strip(),
@@ -1968,7 +1937,7 @@ def register_admin_routes(app):
                 now = datetime.utcnow().isoformat()
                 fields = (
                     "slug", "name", "nickname", "origin", "personality", "symbol", "role",
-                    "story_text", "audio_url", "music_sample_url", "seo_title",
+                    "story_text", "audio_url", "music_sample_url", "audio_source_url", "seo_title",
                     "seo_description", "image_url", "is_active",
                 )
                 cur = conn.execute(
@@ -2034,7 +2003,7 @@ def register_admin_routes(app):
                     UPDATE characters
                     SET slug = ?, name = ?, nickname = ?, origin = ?, personality = ?,
                         symbol = ?, role = ?, story_text = ?, audio_url = ?,
-                        music_sample_url = ?, seo_title = ?, seo_description = ?,
+                        music_sample_url = ?, audio_source_url = ?, seo_title = ?, seo_description = ?,
                         image_url = ?, is_active = ?
                     WHERE id = ?
                     """,
@@ -2049,6 +2018,7 @@ def register_admin_routes(app):
                         form_character["story_text"],
                         form_character["audio_url"],
                         form_character["music_sample_url"],
+                        form_character["audio_source_url"],
                         form_character["seo_title"],
                         form_character["seo_description"],
                         form_character["image_url"],

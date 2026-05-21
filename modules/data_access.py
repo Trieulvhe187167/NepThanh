@@ -259,6 +259,9 @@ def _map_character(row):
     bio_parts = [row["origin"], row["personality"], row["symbol"], row["role"]]
     bio = " ".join(part for part in bio_parts if part)
     audio_source = row["audio_url"] or row["music_sample_url"]
+    audio_source_url = row["audio_source_url"] if "audio_source_url" in row.keys() else ""
+    if not _is_external_url(audio_source_url):
+        audio_source_url = ""
     requested_asset = _resolve_character_asset_path(row["image_url"]) if row["image_url"] else None
     requested_asset_exists = requested_asset and (
         _is_external_url(requested_asset) or _static_path_exists(requested_asset)
@@ -294,6 +297,7 @@ def _map_character(row):
         "bio": bio,
         "audio_file": _normalize_static_path(audio_source) if audio_source else None,
         "audio_url": _normalize_static_path(audio_source) if audio_source else None,
+        "audio_source_url": audio_source_url,
         "image": preview_image,
         "model_path": model_path,
         "asset_path": final_visual_path,

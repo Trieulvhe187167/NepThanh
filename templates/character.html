@@ -120,7 +120,9 @@
                         </div>
                     </div>
                     <div class="player-controls">
+                        <button type="button" class="player-control compact" data-player-seek="-10" aria-label="Tua lùi 10 giây">-10s</button>
                         <button type="button" class="player-control primary" data-player-toggle>Play</button>
+                        <button type="button" class="player-control compact" data-player-seek="10" aria-label="Tua tới 10 giây">+10s</button>
                         <button type="button" class="player-control" data-player-mute>Mute</button>
                         <label class="player-volume">
                             <span>Volume</span>
@@ -128,10 +130,10 @@
                         </label>
                     </div>
                     <p class="player-status" data-player-status></p>
-                    {% if character.audio_url %}
-                    <a class="player-source-link" href="{{ asset_url(character.audio_url) }}" target="_blank"
+                    {% if character.audio_source_url %}
+                    <a class="player-source-link" href="{{ character.audio_source_url }}" target="_blank"
                         rel="noopener">
-                        Nghe bản thu gốc
+                        Xem nguồn chính trên YouTube
                     </a>
                     {% endif %}
                 </div>
@@ -190,6 +192,7 @@
         "story": character.story_text or character.description or character.bio or "Câu chuyện của nhân vật đang được cập nhật.",
         "role": character.role or "Người lưu giữ nét đẹp dân gian Việt Nam.",
         "audioUrl": asset_url(character.audio_url) if character.audio_url else "",
+        "audioSourceUrl": character.audio_source_url or "",
         "introVideoUrl": character.intro_video or "",
         "finalVisualType": character.final_visual_type
     } | tojson }}
@@ -224,110 +227,13 @@
         var introStartResolved = false;
         var modelViewerScriptPromise = null;
 
-        var musicPresets = {
-            "chang-khen": {
-                title: "G pentatonic sáng",
-                description: "Âm sắc thoáng đãng, nhịp bước như gió núi và tiếng khèn gọi bạn đường.",
-                notes: [196.00, 220.00, 246.94, 293.66, 329.63, 392.00],
-                melody: [
-                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1.5 },
-                    { note: 2, beats: 0.5 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 2, beats: 1.5 },
-                    { note: 4, beats: 0.5 }, { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 },
-                    { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 84,
-                waveform: "triangle"
-            },
-            "co-quan-ho": {
-                title: "F pentatonic dịu",
-                description: "Mềm và lơi, như một câu hát đối đáp trên bến nước ngày hội.",
-                notes: [174.61, 196.00, 220.00, 261.63, 293.66, 349.23],
-                melody: [
-                    { note: 0, beats: 1.5 }, { note: 2, beats: 0.5 }, { note: 3, beats: 1.5 }, { note: 2, beats: 0.5 },
-                    { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 4, beats: 1.5 },
-                    { note: 3, beats: 0.5 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 72,
-                waveform: "sine"
-            },
-            "co-cheo": {
-                title: "D pentatonic sân khấu",
-                description: "Rộn nhịp, sáng rõ và có độ bật như tiếng phách mở màn chèo cổ.",
-                notes: [146.83, 164.81, 196.00, 220.00, 246.94, 293.66],
-                melody: [
-                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1 },
-                    { note: 3, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 3, beats: 1 },
-                    { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 }, { note: 1, beats: 1 },
-                    { note: 0, beats: 2 }
-                ],
-                tempo: 96,
-                waveform: "triangle"
-            },
-            "nang-then": {
-                title: "A pentatonic huyền ảo",
-                description: "Bay nhẹ, ngân dài như lời Then dẫn lối giữa trăng và núi.",
-                notes: [110.00, 130.81, 146.83, 164.81, 196.00, 220.00],
-                melody: [
-                    { note: 0, beats: 2 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 2 },
-                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 },
-                    { note: 2, beats: 1 }, { note: 4, beats: 1 }, { note: 5, beats: 2 }, { note: 4, beats: 2 }
-                ],
-                tempo: 68,
-                waveform: "sine"
-            },
-            "chu-xam": {
-                title: "E pentatonic phố chợ",
-                description: "Mộc và ngân, có độ rung như tiếng xẩm giữa nhịp đời cũ.",
-                notes: [164.81, 185.00, 220.00, 246.94, 277.18, 329.63],
-                melody: [
-                    { note: 0, beats: 1.5 }, { note: 2, beats: 0.5 }, { note: 3, beats: 1 }, { note: 2, beats: 1 },
-                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 2, beats: 1.5 }, { note: 4, beats: 0.5 },
-                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 76,
-                waveform: "square"
-            },
-            "be-roi": {
-                title: "C pentatonic trong trẻo",
-                description: "Vui và tung tẩy như mặt nước gợn sáng khi con rối vừa xuất hiện.",
-                notes: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63],
-                melody: [
-                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 5, beats: 1 },
-                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 0, beats: 1 }, { note: 1, beats: 1 },
-                    { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 92,
-                waveform: "triangle"
-            },
-            "anh-hai": {
-                title: "Bb pentatonic hội làng",
-                description: "Ấm và chắc nhịp, gợi không khí giao đãi của sân đình ngày hội.",
-                notes: [116.54, 130.81, 146.83, 174.61, 196.00, 233.08],
-                melody: [
-                    { note: 0, beats: 1 }, { note: 1, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1.5 },
-                    { note: 3, beats: 0.5 }, { note: 1, beats: 1 }, { note: 0, beats: 1 }, { note: 1, beats: 1 },
-                    { note: 3, beats: 1 }, { note: 5, beats: 1 }, { note: 4, beats: 1 }, { note: 3, beats: 1 },
-                    { note: 1, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 88,
-                waveform: "triangle"
-            }
-        };
-
-        function defaultPreset(name) {
+        function audioTrackMeta(name) {
             return {
-                title: "Ngũ cung dân gian",
-                description: "Một vòng giai điệu ngũ cung nhẹ, dựng riêng cho " + name + ".",
-                notes: [130.81, 146.83, 164.81, 196.00, 220.00, 261.63],
-                melody: [
-                    { note: 0, beats: 1 }, { note: 2, beats: 1 }, { note: 3, beats: 1 }, { note: 4, beats: 1 },
-                    { note: 3, beats: 1 }, { note: 2, beats: 1 }, { note: 1, beats: 1 }, { note: 0, beats: 2 }
-                ],
-                tempo: 80,
-                waveform: "triangle"
+                title: "Bản nhạc top - " +  name,
+                description: "Xin mời bạn thưởng thức bản audio" 
             };
         }
-
+name
         function wait(ms) {
             return new Promise(function (resolve) {
                 window.setTimeout(resolve, ms);
@@ -613,12 +519,13 @@
                 });
         }
 
-        function PentatonicPlayer(container, preset, sourceUrl) {
+        function AudioTrackPlayer(container, meta, sourceUrl) {
             this.container = container;
-            this.preset = preset;
+            this.meta = meta;
             this.sourceUrl = sourceUrl;
             this.toggleButton = container.querySelector("[data-player-toggle]");
             this.muteButton = container.querySelector("[data-player-mute]");
+            this.seekButtons = Array.prototype.slice.call(container.querySelectorAll("[data-player-seek]"));
             this.volumeInput = container.querySelector("[data-player-volume]");
             this.progressFill = container.querySelector("[data-progress-fill]");
             this.progressCurrent = container.querySelector("[data-progress-current]");
@@ -627,55 +534,34 @@
             this.title = container.querySelector("[data-track-title]");
             this.description = container.querySelector("[data-track-description]");
             this.bars = Array.prototype.slice.call(container.querySelectorAll(".player-visualizer span"));
+            this.audio = new Audio();
+            this.audio.preload = "metadata";
+            this.audio.crossOrigin = "anonymous";
             this.audioContext = null;
-            this.masterGain = null;
             this.analyser = null;
-            this.timeoutId = null;
+            this.sourceNode = null;
             this.frameId = null;
             this.unlockPending = false;
             this.isPlaying = false;
             this.isMuted = false;
-            this.elapsed = 0;
-            this.startedAt = 0;
-            this.segments = [];
-            this.totalDuration = 0;
-            this.activeNodes = [];
-            this._buildSegments();
             this._bind();
             this._renderMeta();
         }
 
-        PentatonicPlayer.prototype._buildSegments = function () {
-            var secondsPerBeat = 60 / this.preset.tempo;
-            var cursor = 0;
-            this.segments = this.preset.melody.map(function (item) {
-                var duration = item.beats * secondsPerBeat;
-                var segment = {
-                    note: item.note,
-                    start: cursor,
-                    duration: duration,
-                    end: cursor + duration
-                };
-                cursor += duration;
-                return segment;
-            });
-            this.totalDuration = cursor;
-        };
-
-        PentatonicPlayer.prototype._renderMeta = function () {
-            this.title.textContent = this.preset.title;
-            this.description.textContent = this.preset.description;
-            this.progressTotal.textContent = formatTime(this.totalDuration);
+        AudioTrackPlayer.prototype._renderMeta = function () {
+            this.title.textContent = this.meta.title;
+            this.description.textContent = this.sourceUrl ? this.meta.description : "Chưa có file audio cho nhân vật này.";
+            this.progressTotal.textContent = "0:00";
             this.progressCurrent.textContent = "0:00";
             this.progressFill.style.width = "0%";
-            this._setStatus("Sẵn sàng phát giai điệu cho " + payload.name + ".");
+            this._setStatus(this.sourceUrl ? "Sẵn sàng phát bản thu gốc cho " + payload.name + "." : "Hãy thêm audio_url hoặc music_sample_url trong admin để phát nhạc.");
         };
 
-        PentatonicPlayer.prototype._setStatus = function (message) {
+        AudioTrackPlayer.prototype._setStatus = function (message) {
             this.status.textContent = message;
         };
 
-        PentatonicPlayer.prototype._bind = function () {
+        AudioTrackPlayer.prototype._bind = function () {
             var self = this;
             this.toggleButton.addEventListener("click", function () {
                 if (self.isPlaying) {
@@ -688,8 +574,28 @@
                 self.isMuted = !self.isMuted;
                 self._applyVolume();
             });
+            this.seekButtons.forEach(function (button) {
+                button.addEventListener("click", function () {
+                    self.seekBy(Number(button.getAttribute("data-player-seek") || 0));
+                });
+            });
             this.volumeInput.addEventListener("input", function () {
                 self._applyVolume();
+            });
+            this.audio.addEventListener("loadedmetadata", function () {
+                self.progressTotal.textContent = formatTime(self.audio.duration || 0);
+            });
+            this.audio.addEventListener("timeupdate", function () {
+                self._renderProgress();
+            });
+            this.audio.addEventListener("ended", function () {
+                self._finishPlayback();
+            });
+            this.audio.addEventListener("error", function () {
+                self.isPlaying = false;
+                self.toggleButton.textContent = "Play";
+                self._stopVisualizer();
+                self._setStatus("Không tải được file audio. Kiểm tra lại đường dẫn audio_url trong admin.");
             });
 
             function unlockHandler() {
@@ -704,69 +610,52 @@
             document.addEventListener("keydown", unlockHandler);
         };
 
-        PentatonicPlayer.prototype._ensureContext = function () {
+        AudioTrackPlayer.prototype._ensureAudio = function () {
+            if (!this.sourceUrl) {
+                this._setStatus("Chưa có file audio cho nhân vật này.");
+                return Promise.reject(new Error("Missing audio source"));
+            }
+            if (!this.audio.src) {
+                this.audio.src = this.sourceUrl;
+                this.audio.load();
+            }
+            return Promise.resolve(this.audio);
+        };
+
+        AudioTrackPlayer.prototype._ensureContext = function () {
             if (this.audioContext) {
                 return Promise.resolve(this.audioContext);
             }
             var Ctx = window.AudioContext || window.webkitAudioContext;
             if (!Ctx) {
-                this._setStatus("Trình duyệt chưa hỗ trợ Web Audio.");
-                return Promise.reject(new Error("Web Audio unsupported"));
+                this._setStatus("Trình duyệt chưa hỗ trợ visualizer theo tần số, audio vẫn có thể phát.");
+                return Promise.resolve(null);
             }
-            this.audioContext = new Ctx();
-            this.masterGain = this.audioContext.createGain();
-            this.analyser = this.audioContext.createAnalyser();
-            this.analyser.fftSize = 64;
-            this.masterGain.connect(this.analyser);
-            this.analyser.connect(this.audioContext.destination);
+            try {
+                this.audioContext = new Ctx();
+                this.analyser = this.audioContext.createAnalyser();
+                this.analyser.fftSize = 64;
+                this.sourceNode = this.audioContext.createMediaElementSource(this.audio);
+                this.sourceNode.connect(this.analyser);
+                this.analyser.connect(this.audioContext.destination);
+            } catch (error) {
+                this.audioContext = null;
+                this.analyser = null;
+            }
             this._applyVolume();
             return Promise.resolve(this.audioContext);
         };
 
-        PentatonicPlayer.prototype._applyVolume = function () {
+        AudioTrackPlayer.prototype._applyVolume = function () {
             var volume = Number(this.volumeInput.value || 0) / 100;
-            var target = this.isMuted ? 0 : volume;
-            if (this.masterGain) {
-                this.masterGain.gain.setTargetAtTime(target, this.audioContext.currentTime, 0.01);
-            }
+            this.audio.volume = this.isMuted ? 0 : volume;
+            this.audio.muted = this.isMuted;
             this.muteButton.textContent = this.isMuted ? "Unmute" : "Mute";
         };
 
-        PentatonicPlayer.prototype._playNote = function (frequency, duration) {
-            if (!this.audioContext || !this.masterGain) {
-                return;
-            }
-            var now = this.audioContext.currentTime;
-            var oscillator = this.audioContext.createOscillator();
-            var overtone = this.audioContext.createOscillator();
-            var gain = this.audioContext.createGain();
-
-            oscillator.type = this.preset.waveform;
-            oscillator.frequency.value = frequency;
-            overtone.type = "sine";
-            overtone.frequency.value = frequency * 2;
-
-            gain.gain.setValueAtTime(0.0001, now);
-            gain.gain.exponentialRampToValueAtTime(0.26, now + 0.03);
-            gain.gain.exponentialRampToValueAtTime(0.0001, now + Math.max(0.16, duration));
-
-            oscillator.connect(gain);
-            overtone.connect(gain);
-            gain.connect(this.masterGain);
-
-            oscillator.start(now);
-            overtone.start(now);
-            oscillator.stop(now + duration + 0.08);
-            overtone.stop(now + duration + 0.08);
-            this.activeNodes = [oscillator, overtone];
-        };
-
-        PentatonicPlayer.prototype._startVisualizer = function () {
+        AudioTrackPlayer.prototype._startVisualizer = function () {
             var self = this;
-            if (!this.analyser) {
-                return;
-            }
-            var data = new Uint8Array(this.analyser.frequencyBinCount);
+            var data = this.analyser ? new Uint8Array(this.analyser.frequencyBinCount) : null;
 
             function frame() {
                 if (!self.isPlaying) {
@@ -775,10 +664,13 @@
                     });
                     return;
                 }
-                self.analyser.getByteFrequencyData(data);
+                if (self.analyser && data) {
+                    self.analyser.getByteFrequencyData(data);
+                }
                 self.bars.forEach(function (bar, index) {
-                    var sample = data[index % data.length] || 22;
-                    var scale = Math.max(0.24, sample / 160);
+                    var fallback = 72 + Math.sin((self.audio.currentTime * 9) + index) * 44;
+                    var sample = data ? data[index % data.length] : fallback;
+                    var scale = Math.max(0.24, Math.min(1.35, sample / 150));
                     bar.style.transform = "scaleY(" + scale.toFixed(2) + ")";
                 });
                 self.frameId = window.requestAnimationFrame(frame);
@@ -787,7 +679,7 @@
             this.frameId = window.requestAnimationFrame(frame);
         };
 
-        PentatonicPlayer.prototype._stopVisualizer = function () {
+        AudioTrackPlayer.prototype._stopVisualizer = function () {
             if (this.frameId) {
                 window.cancelAnimationFrame(this.frameId);
                 this.frameId = null;
@@ -797,210 +689,78 @@
             });
         };
 
-        PentatonicPlayer.prototype._scheduleFrom = function (offset) {
-            var self = this;
-            var localOffset = offset;
-            var segmentIndex = 0;
-
-            while (segmentIndex < this.segments.length && localOffset >= this.segments[segmentIndex].end) {
-                segmentIndex += 1;
-            }
-
-            if (segmentIndex >= this.segments.length) {
-                localOffset = 0;
-                segmentIndex = 0;
-            }
-
-            function schedule(index, skipped) {
-                if (!self.isPlaying) {
-                    return;
-                }
-                var segment = self.segments[index];
-                var skip = skipped || 0;
-                var remaining = Math.max(0.12, segment.duration - skip);
-                self._playNote(self.preset.notes[segment.note], remaining * 0.92);
-                self.timeoutId = window.setTimeout(function () {
-                    var nextIndex = index + 1;
-                    if (nextIndex >= self.segments.length) {
-                        self._finishPlayback();
-                        return;
-                    }
-                    schedule(nextIndex, 0);
-                }, remaining * 1000);
-            }
-
-            schedule(segmentIndex, Math.max(0, localOffset - this.segments[segmentIndex].start));
+        AudioTrackPlayer.prototype._renderProgress = function () {
+            var duration = this.audio.duration || 0;
+            var current = this.audio.currentTime || 0;
+            this.progressCurrent.textContent = formatTime(current);
+            this.progressTotal.textContent = duration ? formatTime(duration) : "0:00";
+            this.progressFill.style.width = duration ? ((current / duration) * 100).toFixed(2) + "%" : "0%";
         };
 
-        PentatonicPlayer.prototype._updateProgress = function () {
-            var self = this;
-
-            function frame() {
-                if (!self.isPlaying) {
-                    return;
-                }
-                var elapsed = (window.performance.now() - self.startedAt) / 1000;
-                if (elapsed >= self.totalDuration) {
-                    self._finishPlayback();
-                    return;
-                }
-                self.elapsed = elapsed;
-                self.progressCurrent.textContent = formatTime(elapsed);
-                self.progressFill.style.width = ((elapsed / self.totalDuration) * 100).toFixed(2) + "%";
-                self.frameIdProgress = window.requestAnimationFrame(frame);
+        AudioTrackPlayer.prototype.seekBy = function (seconds) {
+            if (!this.sourceUrl || !this.audio.src) {
+                return;
             }
-
-            this.frameIdProgress = window.requestAnimationFrame(frame);
-        };
-
-        PentatonicPlayer.prototype._stopProgress = function () {
-            if (this.frameIdProgress) {
-                window.cancelAnimationFrame(this.frameIdProgress);
-                this.frameIdProgress = null;
+            var duration = this.audio.duration || 0;
+            var nextTime = this.audio.currentTime + seconds;
+            if (duration) {
+                nextTime = Math.min(duration, Math.max(0, nextTime));
+            } else {
+                nextTime = Math.max(0, nextTime);
             }
+            this.audio.currentTime = nextTime;
+            this._renderProgress();
         };
 
-        PentatonicPlayer.prototype._stopActiveNodes = function () {
-            this._stopActiveNodes();
-        };
-
-        PentatonicPlayer.prototype._finishPlayback = function () {
+        AudioTrackPlayer.prototype._finishPlayback = function () {
             this.isPlaying = false;
-            if (this.timeoutId) {
-                window.clearTimeout(this.timeoutId);
-                this.timeoutId = null;
-            }
-            this._stopProgress();
             this._stopVisualizer();
-            this._stopActiveNodes();
-            this.elapsed = this.totalDuration;
-            this.progressCurrent.textContent = formatTime(this.totalDuration);
+            this._renderProgress();
             this.progressFill.style.width = "100%";
             this.toggleButton.textContent = "Play";
-            this._setStatus("Đoạn nhạc giới thiệu đã phát xong. Nhấn Play để nghe lại.");
+            this._setStatus("Bản thu gốc đã phát xong. Nhấn Play để nghe lại.");
         };
 
-        PentatonicPlayer.prototype.pause = function () {
+        AudioTrackPlayer.prototype.pause = function () {
             if (!this.isPlaying) {
                 return;
             }
             this.isPlaying = false;
-            if (this.timeoutId) {
-                window.clearTimeout(this.timeoutId);
-                this.timeoutId = null;
-            }
-            this._stopProgress();
+            this.audio.pause();
             this._stopVisualizer();
             this.toggleButton.textContent = "Play";
-            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
-            this.activeNodes.forEach(function (node) {
-                if (typeof node.stop === "function") {
-                    try {
-                        node.stop();
-                    } catch (error) {
-                        return;
-                    }
-                }
-            });
-            this.activeNodes = [];
+            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục bản thu từ vị trí hiện tại.");
         };
 
-        PentatonicPlayer.prototype._stopActiveNodes = function () {
-            this.activeNodes.forEach(function (node) {
-                if (typeof node.stop === "function") {
-                    try {
-                        node.stop();
-                    } catch (error) {
-                        return;
-                    }
-                }
-            });
-            this.activeNodes = [];
-        };
-
-        PentatonicPlayer.prototype.pause = function () {
-            if (!this.isPlaying) {
-                return;
-            }
-            this.isPlaying = false;
-            if (this.timeoutId) {
-                window.clearTimeout(this.timeoutId);
-                this.timeoutId = null;
-            }
-            this._stopProgress();
-            this._stopVisualizer();
-            this._stopActiveNodes();
-            this.toggleButton.textContent = "Play";
-            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
-        };
-
-        PentatonicPlayer.prototype._stopActiveNodes = function () {
-            this.activeNodes.forEach(function (node) {
-                if (typeof node.stop === "function") {
-                    try {
-                        node.stop();
-                    } catch (error) {
-                        return;
-                    }
-                }
-            });
-            this.activeNodes = [];
-        };
-
-        PentatonicPlayer.prototype._finishPlayback = function () {
-            this.isPlaying = false;
-            if (this.timeoutId) {
-                window.clearTimeout(this.timeoutId);
-                this.timeoutId = null;
-            }
-            this._stopProgress();
-            this._stopVisualizer();
-            this._stopActiveNodes();
-            this.elapsed = this.totalDuration;
-            this.progressCurrent.textContent = formatTime(this.totalDuration);
-            this.progressFill.style.width = "100%";
-            this.toggleButton.textContent = "Play";
-            this._setStatus("Đoạn nhạc giới thiệu đã phát xong. Nhấn Play để nghe lại.");
-        };
-
-        PentatonicPlayer.prototype.pause = function () {
-            if (!this.isPlaying) {
-                return;
-            }
-            this.isPlaying = false;
-            if (this.timeoutId) {
-                window.clearTimeout(this.timeoutId);
-                this.timeoutId = null;
-            }
-            this._stopProgress();
-            this._stopVisualizer();
-            this._stopActiveNodes();
-            this.toggleButton.textContent = "Play";
-            this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục từ nhịp hiện tại.");
-        };
-
-        PentatonicPlayer.prototype.play = function () {
+        AudioTrackPlayer.prototype.play = function () {
             var self = this;
             if (this.isPlaying) {
                 return Promise.resolve();
             }
-            if (this.elapsed >= this.totalDuration) {
-                this.elapsed = 0;
+            if (this.audio.ended) {
+                this.audio.currentTime = 0;
                 this.progressCurrent.textContent = "0:00";
                 this.progressFill.style.width = "0%";
             }
-            return this._ensureContext()
+            return this._ensureAudio()
                 .then(function () {
-                    return self.audioContext.resume();
+                    return self._ensureContext();
+                })
+                .then(function () {
+                    if (self.audioContext) {
+                        return self.audioContext.resume();
+                    }
+                    return Promise.resolve();
+                })
+                .then(function () {
+                    self._applyVolume();
+                    return self.audio.play();
                 })
                 .then(function () {
                     self.isPlaying = true;
                     self.unlockPending = false;
-                    self.startedAt = window.performance.now() - (self.elapsed * 1000);
                     self.toggleButton.textContent = "Pause";
-                    self._setStatus("Đang phát: " + self.preset.title + ".");
-                    self._scheduleFrom(self.elapsed);
-                    self._updateProgress();
+                    self._setStatus("Đang phát bản thu gốc của " + payload.name + ".");
                     self._startVisualizer();
                 })
                 .catch(function () {
@@ -1010,15 +770,14 @@
                 });
         };
 
-        PentatonicPlayer.prototype.autoPlay = function () {
+        AudioTrackPlayer.prototype.autoPlay = function () {
             return this.play();
         };
 
         createSparkles();
         showPosterFigure();
 
-        var preset = musicPresets[payload.slug] || defaultPreset(payload.name);
-        var player = new PentatonicPlayer(root.querySelector("[data-player]"), preset, payload.audioUrl);
+        var player = new AudioTrackPlayer(root.querySelector("[data-player]"), audioTrackMeta(payload.name), payload.audioUrl);
 
         async function runSequence() {
             viewer.classList.add("is-active");

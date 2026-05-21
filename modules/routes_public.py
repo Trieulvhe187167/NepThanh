@@ -13,6 +13,7 @@ from modules.auth import (
     _get_user_by_email,
     _google_enabled,
     _google_oauth_url,
+    _is_admin_user,
 )
 from modules.account_security import (
     TOKEN_PURPOSE_EMAIL_VERIFY,
@@ -778,6 +779,7 @@ def register_public_routes(app):
         if _get_current_user():
             return redirect(url_for("home"))
         error = request.args.get("error")
+        signup_email = ""
         next_url = _safe_next_url(request.args.get("next") or request.form.get("next"))
         background_url = _safe_background_url(next_url)
         if not background_url:
@@ -786,6 +788,7 @@ def register_public_routes(app):
             background_url = url_for("home")
         if request.method == "POST":
             email = request.form.get("email", "").strip().lower()
+            signup_email = email
             password = request.form.get("password", "")
             confirm = request.form.get("confirm_password", "")
             if not email or "@" not in email:
@@ -815,6 +818,7 @@ def register_public_routes(app):
             error=error,
             google_enabled=_google_enabled(),
             next_url=next_url,
+            signup_email=signup_email,
             background_url=background_url,
         )
 
@@ -840,6 +844,15 @@ def register_public_routes(app):
             else:
                 session["user_id"] = user["id"]
                 merge_guest_cart_into_user(user["id"])
+                user_info = {
+                    "id": user["id"],
+                    "email": user["email"],
+                    "full_name": user["full_name"],
+                    "role": user["role"],
+                    "is_blocked": user["is_blocked"],
+                }
+                if _is_admin_user(user_info):
+                    return redirect(url_for("admin_dashboard"))
                 return redirect(next_url or url_for("home"))
         return render_template(
             "login.html",
@@ -894,6 +907,13 @@ def register_public_routes(app):
         user = _get_user_by_email(email)
         if user:
             user_id = user["id"]
+            user_info = {
+                "id": user["id"],
+                "email": user["email"],
+                "full_name": user["full_name"],
+                "role": user["role"],
+                "is_blocked": user["is_blocked"],
+            }
         else:
             user_id = _create_user(
                 email,
@@ -901,10 +921,19 @@ def register_public_routes(app):
                 full_name=name,
                 is_verified=1,
             )
+            user_info = {
+                "id": user_id,
+                "email": email,
+                "full_name": name,
+                "role": "customer",
+                "is_blocked": 0,
+            }
         session["user_id"] = user_id
         merge_guest_cart_into_user(user_id)
         session.pop("google_oauth_state", None)
         next_url = _safe_next_url(session.pop("google_oauth_next", None))
+        if _is_admin_user(user_info):
+            return redirect(url_for("admin_dashboard"))
         return redirect(next_url or url_for("home"))
 
     @app.route("/sitemap.xml")

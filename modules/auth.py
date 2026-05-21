@@ -143,9 +143,9 @@ def admin_required(permission=None):
         def wrapped(*args, **kwargs):
             user = _get_current_user()
             if not user or user.get("is_blocked"):
-                return redirect(url_for("admin_login", next=request.full_path))
+                return redirect(url_for("login", next=request.full_path))
             if not _is_admin_user(user) or (permission and not _has_permission(user, permission)):
-                return redirect(url_for("admin_login", next=request.full_path))
+                return redirect(url_for("home"))
             return view(*args, **kwargs)
 
         return wrapped

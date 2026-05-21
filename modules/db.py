@@ -33,7 +33,7 @@ _TURSO_SYNC_INTERVAL_SECONDS = max(
     int((os.environ.get("TURSO_SYNC_INTERVAL_SECONDS") or "15").strip() or "15"),
 )
 _LAST_TURSO_SYNC_AT = 0.0
-_SCHEMA_BOOTSTRAP_VERSION = "2026-05-20-characters"
+_SCHEMA_BOOTSTRAP_VERSION = "2026-05-21-character-audio-source"
 
 
 class ManagedConnection:
@@ -206,6 +206,7 @@ def _create_base_tables(conn):
             story_text TEXT,
             audio_url TEXT,
             music_sample_url TEXT,
+            audio_source_url TEXT,
             seo_title TEXT,
             seo_description TEXT,
             image_url TEXT,
@@ -635,6 +636,7 @@ def init_db():
     _ensure_column(conn, "characters", "story_text", "TEXT")
     _ensure_column(conn, "characters", "audio_url", "TEXT")
     _ensure_column(conn, "characters", "music_sample_url", "TEXT")
+    _ensure_column(conn, "characters", "audio_source_url", "TEXT")
     _ensure_column(conn, "characters", "seo_title", "TEXT")
     _ensure_column(conn, "characters", "seo_description", "TEXT")
     _ensure_column(conn, "characters", "image_url", "TEXT")

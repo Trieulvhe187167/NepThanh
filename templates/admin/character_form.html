@@ -64,6 +64,11 @@
             <input name="music_sample_url" value="{{ character.music_sample_url if character else '' }}" placeholder="audio/characters/co-cheo-sample.mp3" />
         </div>
         <div class="form-group">
+            <label>Link nguồn YouTube</label>
+            <input name="audio_source_url" value="{{ character.audio_source_url if character else '' }}" placeholder="https://www.youtube.com/watch?v=..." />
+            <small class="muted">Link này sẽ hiện ở cuối player để khách xem video nguồn chính của bản audio.</small>
+        </div>
+        <div class="form-group">
             <label>Video giới thiệu</label>
             <input value="Blob URL theo slug nếu đã cấu hình, hoặc videos/characters/{{ character.slug if character else 'slug-nhan-vat' }}.mp4" readonly />
             <small class="muted">Video được hệ thống tự nhận theo slug. Với asset lớn, ưu tiên URL Blob để không làm nặng bundle deploy.</small>

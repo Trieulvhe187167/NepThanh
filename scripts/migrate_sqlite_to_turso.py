@@ -69,7 +69,7 @@ def connect_source(path):
 
 
 def connect_target(replica_path, url, token):
-    for suffix in ("", "-shm", "-wal", ".meta", "-meta"):
+    for suffix in ("", "-shm", "-wal", ".meta", "-meta", "-info"):
         stale_path = Path(f"{replica_path}{suffix}")
         if stale_path.exists():
             stale_path.unlink()
@@ -97,6 +97,44 @@ def fetch_table_names(conn):
     return [name for name, _ in fetch_objects(conn, "table")]
 
 
+def order_tables_for_copy(conn):
+    table_names = fetch_table_names(conn)
+    table_set = set(table_names)
+    dependencies = {}
+
+    for table_name in table_names:
+        foreign_keys = conn.execute(
+            f"PRAGMA foreign_key_list({quote_ident(table_name)})"
+        ).fetchall()
+        dependencies[table_name] = {
+            row[2]
+            for row in foreign_keys
+            if row[2] in table_set and row[2] != table_name
+        }
+
+    ordered = []
+    temporary = set()
+    permanent = set()
+
+    def visit(table_name):
+        if table_name in permanent:
+            return
+        if table_name in temporary:
+            return
+
+        temporary.add(table_name)
+        for dependency in sorted(dependencies[table_name]):
+            visit(dependency)
+        temporary.remove(table_name)
+        permanent.add(table_name)
+        ordered.append(table_name)
+
+    for table_name in table_names:
+        visit(table_name)
+
+    return ordered
+
+
 def target_has_user_tables(conn):
     return bool(fetch_table_names(conn))
 
@@ -106,7 +144,7 @@ def drop_existing_target_objects(conn):
         for name, _ in fetch_objects(conn, object_type):
             conn.execute(f"DROP {object_type.upper()} IF EXISTS {quote_ident(name)}")
 
-    for table_name in fetch_table_names(conn):
+    for table_name in reversed(order_tables_for_copy(conn)):
         conn.execute(f"DROP TABLE IF EXISTS {quote_ident(table_name)}")
 
 
@@ -211,7 +249,7 @@ def migrate(source_path, replica_path, url, token, reset):
         target_conn.commit()
 
         migrated = []
-        for table_name in fetch_table_names(source_conn):
+        for table_name in order_tables_for_copy(source_conn):
             row_count = copy_table_data(source_conn, target_conn, table_name)
             migrated.append((table_name, row_count))
 

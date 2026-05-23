@@ -59,18 +59,10 @@
 ## ship {#ship}
 
 ### Phí vận chuyển
-
-| Khu vực                        | Phí ship      |
-|--------------------------------|---------------|
-| Nội thành Hà Nội               | 20.000 VND    |
-| Nội thành TP.HCM               | 25.000 VND    |
-| Các tỉnh miền Bắc              | 30.000 VND    |
-| Các tỉnh miền Trung            | 35.000 VND    |
-| Các tỉnh miền Nam (ngoài HCM)  | 35.000 VND    |
+Phí ship là **30.000 VND / 1 đơn** cho mọi đơn hàng.
 
 ### Freeship
-- **Đơn hàng từ 500.000 VND trở lên** được **miễn phí vận chuyển** toàn quốc.
-- Áp dụng tự động, không cần nhập mã.
+- Hiện shop **không áp dụng freeship tự động theo giá trị đơn hàng**.
 
 ### Thời gian giao hàng
 - **Nội thành Hà Nội / TP.HCM**: 1–2 ngày làm việc.

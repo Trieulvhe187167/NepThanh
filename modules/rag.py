@@ -12,18 +12,33 @@ KHÔNG trả lời các chủ đề ngoài phạm vi (chính trị, y tế, côn
 import os
 import re
 import hashlib
+import threading
 from datetime import datetime
 
 from modules.config import DB_PATH
 from modules.db import _get_db
 
-# chromadb is imported lazily – not available on Vercel serverless
-try:
-    import chromadb
-    from chromadb.config import Settings
+# ChromaDB is imported lazily because importing it can noticeably slow chat
+# responses even when the request never needs vector search.
+chromadb = None
+Settings = None
+_CHROMADB_AVAILABLE = None
+
+
+def _ensure_chromadb():
+    global chromadb, Settings, _CHROMADB_AVAILABLE
+    if _CHROMADB_AVAILABLE is not None:
+        return _CHROMADB_AVAILABLE
+    try:
+        import chromadb as chromadb_module
+        from chromadb.config import Settings as chroma_settings
+    except ImportError:
+        _CHROMADB_AVAILABLE = False
+        return False
+    chromadb = chromadb_module
+    Settings = chroma_settings
     _CHROMADB_AVAILABLE = True
-except ImportError:
-    _CHROMADB_AVAILABLE = False
+    return True
 
 # ---------------------------------------------------------------------------
 # Paths & constants
@@ -42,6 +57,17 @@ _EMBED_MODEL_NAME = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 _chroma_client = None
 _collection = None
 _embed_fn = None
+_CHROMA_DISABLED_REASON = None
+_WARMUP_STARTED = False
+_WARMUP_LOCK = threading.Lock()
+
+
+def _disable_chroma(exc):
+    global _chroma_client, _collection, _CHROMA_DISABLED_REASON
+    _chroma_client = None
+    _collection = None
+    _CHROMA_DISABLED_REASON = str(exc)
+    print(f"[RAG] ChromaDB disabled: {_CHROMA_DISABLED_REASON}")
 
 
 def _get_embed_fn():
@@ -49,6 +75,8 @@ def _get_embed_fn():
     global _embed_fn
     if _embed_fn is not None:
         return _embed_fn
+    if not _ensure_chromadb():
+        raise RuntimeError("ChromaDB is not available in this environment.")
     from chromadb.utils.embedding_functions import SentenceTransformerEmbeddingFunction
     _embed_fn = SentenceTransformerEmbeddingFunction(
         model_name=_EMBED_MODEL_NAME,
@@ -59,8 +87,10 @@ def _get_embed_fn():
 def _get_collection():
     """Return the ChromaDB collection (create if needed)."""
     global _chroma_client, _collection
-    if not _CHROMADB_AVAILABLE:
+    if not _ensure_chromadb():
         raise RuntimeError("ChromaDB is not available in this environment.")
+    if _CHROMA_DISABLED_REASON:
+        raise RuntimeError(f"ChromaDB is disabled: {_CHROMA_DISABLED_REASON}")
     if _collection is not None:
         return _collection
     _chroma_client = chromadb.PersistentClient(
@@ -342,11 +372,15 @@ def ingest(force=False):
     Called once at startup or on admin re-index.
     """
     global _INDEXED
-    if not _CHROMADB_AVAILABLE:
+    if _CHROMA_DISABLED_REASON or not _ensure_chromadb():
         return  # silently skip on environments without ChromaDB
     if _INDEXED and not force:
         return
-    collection = _get_collection()
+    try:
+        collection = _get_collection()
+    except Exception as exc:
+        _disable_chroma(exc)
+        return
 
     all_chunks = []
 
@@ -368,22 +402,50 @@ def ingest(force=False):
     batch = 100
     for i in range(0, len(all_chunks), batch):
         chunk_batch = all_chunks[i : i + batch]
-        collection.upsert(
-            ids=[c["id"] for c in chunk_batch],
-            documents=[c["text"] for c in chunk_batch],
-            metadatas=[
-                {
-                    "source": c["source"],
-                    "section": c["section"],
-                    "subsection": c["subsection"],
-                    "type": c["type"],
-                }
-                for c in chunk_batch
-            ],
-        )
+        try:
+            collection.upsert(
+                ids=[c["id"] for c in chunk_batch],
+                documents=[c["text"] for c in chunk_batch],
+                metadatas=[
+                    {
+                        "source": c["source"],
+                        "section": c["section"],
+                        "subsection": c["subsection"],
+                        "type": c["type"],
+                    }
+                    for c in chunk_batch
+                ],
+            )
+        except Exception as exc:
+            _disable_chroma(exc)
+            return
 
     _INDEXED = True
     print(f"[RAG] Indexed {len(all_chunks)} chunks into ChromaDB.")
+
+
+def is_ready():
+    return bool(_INDEXED and not _CHROMA_DISABLED_REASON)
+
+
+def warmup_async():
+    global _WARMUP_STARTED
+    if _INDEXED or _CHROMA_DISABLED_REASON:
+        return
+    with _WARMUP_LOCK:
+        if _WARMUP_STARTED:
+            return
+        _WARMUP_STARTED = True
+
+    def _warmup():
+        try:
+            ingest()
+        finally:
+            global _WARMUP_STARTED
+            with _WARMUP_LOCK:
+                _WARMUP_STARTED = False
+
+    threading.Thread(target=_warmup, name="rag-warmup", daemon=True).start()
 
 
 def reindex():
@@ -411,21 +473,29 @@ def retrieve(query, top_k=5, type_filter=None):
     Retrieve top-k relevant chunks for a query.
     Returns list of dicts: {text, source, section, subsection, type, distance}.
     """
-    if not _CHROMADB_AVAILABLE:
+    if _CHROMA_DISABLED_REASON or not _ensure_chromadb():
         return []  # no RAG available
-    ingest()  # ensure indexed
-    collection = _get_collection()
+    try:
+        ingest()  # ensure indexed
+        collection = _get_collection()
+    except Exception as exc:
+        _disable_chroma(exc)
+        return []
 
     where_filter = None
     if type_filter:
         where_filter = {"type": type_filter}
 
-    results = collection.query(
-        query_texts=[query],
-        n_results=top_k,
-        where=where_filter,
-        include=["documents", "metadatas", "distances"],
-    )
+    try:
+        results = collection.query(
+            query_texts=[query],
+            n_results=top_k,
+            where=where_filter,
+            include=["documents", "metadatas", "distances"],
+        )
+    except Exception as exc:
+        _disable_chroma(exc)
+        return []
 
     hits = []
     if results and results["documents"] and results["documents"][0]:

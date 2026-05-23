@@ -141,49 +141,31 @@ def _address_or_form_value(address, key, form_data):
     return value
 
 
-def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
+def _create_order_from_cart_snapshot(
+    user,
+    cart,
+    order_data,
+    remote_addr="",
+    vnpay_return_url=None,
+    clear_cart_after=False,
+):
     ensure_checkout_tables()
-    cart = get_cart_snapshot(user)
-    if not cart["items"]:
-        return {"ok": False, "error": "Giỏ hàng trống, vui lòng thêm sản phẩm trước khi thanh toán."}
-
     user_id = user["id"] if user else None
-    selected_address = None
-    address_id = (form_data.get("address_id") or "").strip()
-    if user_id and address_id.isdigit():
-        selected_address = get_address_by_id(user_id, int(address_id))
-
-    recipient_name = _address_or_form_value(selected_address, "recipient_name", form_data)
-    email = (form_data.get("email") or "").strip().lower()
-    phone = _address_or_form_value(selected_address, "phone", form_data)
-    line1 = _address_or_form_value(selected_address, "line1", form_data)
-    line2 = _address_or_form_value(selected_address, "line2", form_data)
-    ward = _address_or_form_value(selected_address, "ward", form_data)
-    district = _address_or_form_value(selected_address, "district", form_data)
-    province = _address_or_form_value(selected_address, "province", form_data)
-    ghn_province_id = (form_data.get("ghn_province_id") or "").strip()
-    ghn_district_id = (form_data.get("ghn_district_id") or "").strip()
-    ghn_ward_code = (form_data.get("ghn_ward_code") or "").strip()
-    notes = (form_data.get("notes") or "").strip()
-    payment_method = (form_data.get("payment_method") or "cod").strip().lower()
-    shipping_method = (form_data.get("shipping_method") or "").strip()
-
-    if payment_method not in {"cod", "vnpay", "bank_transfer"}:
-        return {"ok": False, "error": "Phương thức thanh toán không hợp lệ."}
-    if payment_method == "vnpay" and not vnpay_enabled():
-        return {"ok": False, "error": "VNPay chưa được cấu hình."}
-    if payment_method == "bank_transfer" and not bank_transfer_enabled():
-        return {"ok": False, "error": "Chuyển khoản ngân hàng chưa được cấu hình."}
-    if not recipient_name:
-        return {"ok": False, "error": "Vui lòng nhập tên người nhận."}
-    if not email or "@" not in email:
-        return {"ok": False, "error": "Vui lòng nhập email hợp lệ để nhận thông báo đơn hàng."}
-    if not phone:
-        return {"ok": False, "error": "Vui lòng nhập số điện thoại người nhận."}
-    if not line1 or not district or not province:
-        return {"ok": False, "error": "Vui lòng nhập đầy đủ địa chỉ giao hàng."}
-    cart = get_cart_snapshot(user)
+    payment_method = (order_data.get("payment_method") or "cod").strip().lower()
+    shipping_method = (order_data.get("shipping_method") or "").strip()
     coupon_code = cart.get("coupon_code")
+    recipient_name = (order_data.get("recipient_name") or "").strip()
+    email = (order_data.get("email") or "").strip().lower()
+    phone = (order_data.get("phone") or "").strip()
+    line1 = (order_data.get("line1") or "").strip()
+    line2 = (order_data.get("line2") or "").strip()
+    ward = (order_data.get("ward") or "").strip()
+    district = (order_data.get("district") or "").strip()
+    province = (order_data.get("province") or "").strip()
+    notes = (order_data.get("notes") or "").strip()
+    ghn_province_id = (order_data.get("ghn_province_id") or "").strip()
+    ghn_district_id = (order_data.get("ghn_district_id") or "").strip()
+    ghn_ward_code = (order_data.get("ghn_ward_code") or "").strip()
     address = {
         "line1": line1,
         "ward": ward,
@@ -382,7 +364,8 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
     finally:
         conn.close()
 
-    clear_cart(user)
+    if clear_cart_after:
+        clear_cart(user)
     order_dict = _row_to_dict(order_row)
     items_list = [_row_to_dict(row) for row in item_rows]
     # Gửi email xác nhận cho khách
@@ -396,10 +379,138 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
 
     return {
         "ok": True,
+        "order_id": order_row["id"],
         "order_number": order_row["order_number"],
+        "total": order_row["total"],
         "payment_method": payment_method,
         "payment_url": payment_url,
+        "order": order_dict,
+        "items": items_list,
     }
+
+
+def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
+    ensure_checkout_tables()
+    cart = get_cart_snapshot(user)
+    if not cart["items"]:
+        return {"ok": False, "error": "Giỏ hàng trống, vui lòng thêm sản phẩm trước khi thanh toán."}
+
+    user_id = user["id"] if user else None
+    selected_address = None
+    address_id = (form_data.get("address_id") or "").strip()
+    if user_id and address_id.isdigit():
+        selected_address = get_address_by_id(user_id, int(address_id))
+
+    recipient_name = _address_or_form_value(selected_address, "recipient_name", form_data)
+    email = (form_data.get("email") or "").strip().lower()
+    phone = _address_or_form_value(selected_address, "phone", form_data)
+    line1 = _address_or_form_value(selected_address, "line1", form_data)
+    line2 = _address_or_form_value(selected_address, "line2", form_data)
+    ward = _address_or_form_value(selected_address, "ward", form_data)
+    district = _address_or_form_value(selected_address, "district", form_data)
+    province = _address_or_form_value(selected_address, "province", form_data)
+    ghn_province_id = (form_data.get("ghn_province_id") or "").strip()
+    ghn_district_id = (form_data.get("ghn_district_id") or "").strip()
+    ghn_ward_code = (form_data.get("ghn_ward_code") or "").strip()
+    notes = (form_data.get("notes") or "").strip()
+    payment_method = (form_data.get("payment_method") or "cod").strip().lower()
+    shipping_method = (form_data.get("shipping_method") or "").strip()
+
+    if payment_method not in {"cod", "vnpay", "bank_transfer"}:
+        return {"ok": False, "error": "Phương thức thanh toán không hợp lệ."}
+    if payment_method == "vnpay" and not vnpay_enabled():
+        return {"ok": False, "error": "VNPay chưa được cấu hình."}
+    if payment_method == "bank_transfer" and not bank_transfer_enabled():
+        return {"ok": False, "error": "Chuyển khoản ngân hàng chưa được cấu hình."}
+    if not recipient_name:
+        return {"ok": False, "error": "Vui lòng nhập tên người nhận."}
+    if not email or "@" not in email:
+        return {"ok": False, "error": "Vui lòng nhập email hợp lệ để nhận thông báo đơn hàng."}
+    if not phone:
+        return {"ok": False, "error": "Vui lòng nhập số điện thoại người nhận."}
+    if not line1 or not district or not province:
+        return {"ok": False, "error": "Vui lòng nhập đầy đủ địa chỉ giao hàng."}
+    cart = get_cart_snapshot(user)
+    return _create_order_from_cart_snapshot(
+        user,
+        cart,
+        {
+            "recipient_name": recipient_name,
+            "email": email,
+            "phone": phone,
+            "line1": line1,
+            "line2": line2,
+            "ward": ward,
+            "district": district,
+            "province": province,
+            "ghn_province_id": ghn_province_id,
+            "ghn_district_id": ghn_district_id,
+            "ghn_ward_code": ghn_ward_code,
+            "notes": notes,
+            "payment_method": payment_method,
+            "shipping_method": shipping_method,
+        },
+        remote_addr=remote_addr,
+        vnpay_return_url=vnpay_return_url,
+        clear_cart_after=True,
+    )
+
+
+def place_order_from_bot_draft(draft_data, session_id, user=None):
+    ensure_checkout_tables()
+    variant_id = _parse_int(draft_data.get("variant_id"), 0)
+    if variant_id <= 0:
+        return {"ok": False, "error": "Missing product variant for bot order."}
+
+    recipient_name = (draft_data.get("customer_name") or "").strip()
+    phone = (draft_data.get("phone") or "").strip()
+    address_text = (draft_data.get("address") or "").strip()
+    if not recipient_name or not phone or not address_text:
+        return {"ok": False, "error": "Missing recipient, phone, or address for bot order."}
+
+    conn = _get_db()
+    try:
+        variant = _variant_catalog(conn, [variant_id]).get(variant_id)
+    finally:
+        conn.close()
+    if variant is None:
+        return {"ok": False, "error": "Product variant is unavailable."}
+
+    unit_price = _parse_int(variant["unit_price"], _parse_int(draft_data.get("price"), 0))
+    cart = {
+        "items": [
+            {
+                "variant_id": variant_id,
+                "product_id": variant["product_id"],
+                "product_name": variant["product_name"] or draft_data.get("product_name") or "Nep Thanh product",
+                "qty": 1,
+                "unit_price": unit_price,
+                "line_total": unit_price,
+            }
+        ],
+        "subtotal": unit_price,
+        "discount_amount": 0,
+        "coupon_code": None,
+    }
+    user_email = (user.get("email") if user else "") or ""
+    return _create_order_from_cart_snapshot(
+        user,
+        cart,
+        {
+            "recipient_name": recipient_name,
+            "email": user_email,
+            "phone": phone,
+            "line1": address_text,
+            "line2": "",
+            "ward": "",
+            "district": "",
+            "province": "",
+            "notes": f"AI Bot order (session: {session_id})",
+            "payment_method": "cod",
+            "shipping_method": "",
+        },
+        clear_cart_after=False,
+    )
 
 
 def get_order_details(order_number):
@@ -589,8 +700,10 @@ def _variant_catalog(conn, variant_ids):
             v.sku,
             v.size,
             v.color,
+            COALESCE(v.price, p.base_price) AS unit_price,
             v.stock_qty,
             v.is_active,
+            p.name AS product_name,
             p.status AS product_status
         FROM product_variants v
         JOIN products p ON p.id = v.product_id

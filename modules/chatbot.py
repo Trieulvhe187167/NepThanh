@@ -332,10 +332,125 @@ def _extract_color(text):
         "xanh": "Xanh",
         "nau": "Nâu",
     }
-    for key, val in colors.items():
+    for key, val in sorted(colors.items(), key=lambda item: len(item[0]), reverse=True):
         if key in norm:
             return val
     return None
+
+
+def _available_colors(product, size=None):
+    colors = []
+    normalized_size = (size or "").upper()
+    for variant in product.get("variants", []):
+        if normalized_size and (variant.get("size") or "").upper() != normalized_size:
+            continue
+        color = (variant.get("color") or "").strip()
+        if color and variant.get("stock", 0) > 0 and color not in colors:
+            colors.append(color)
+    return sorted(colors, key=_normalize)
+
+
+def _available_sizes(product, color=None):
+    sizes = []
+    normalized_color = _normalize(color or "")
+    for variant in product.get("variants", []):
+        if variant.get("stock", 0) <= 0:
+            continue
+        if normalized_color and _normalize(variant.get("color") or "") != normalized_color:
+            continue
+        size = (variant.get("size") or "").strip()
+        if size and size not in sizes:
+            sizes.append(size)
+    return sorted(sizes, key=lambda value: ["S", "M", "L", "XL", "XXL"].index(value) if value in ["S", "M", "L", "XL", "XXL"] else 99)
+
+
+def _match_color_choice(text, colors):
+    if not colors:
+        return None
+    norm = _normalize(text)
+    extracted = _extract_color(text)
+    if extracted:
+        extracted_norm = _normalize(extracted)
+        for color in colors:
+            if _normalize(color) == extracted_norm:
+                return color
+    for color in colors:
+        color_norm = _normalize(color)
+        if norm == color_norm or color_norm in norm:
+            return color
+    return None
+
+
+def _find_order_variant(product, color=None, size=None):
+    normalized_color = _normalize(color or "")
+    normalized_size = (size or "").upper()
+    for variant in product.get("variants", []):
+        if variant.get("stock", 0) <= 0:
+            continue
+        if normalized_color and _normalize(variant.get("color") or "") != normalized_color:
+            continue
+        if normalized_size and (variant.get("size") or "").upper() != normalized_size:
+            continue
+        return variant
+    return None
+
+
+def _ask_color(session_id, product, data):
+    colors_available = _available_colors(product, data.get("size"))
+    if not colors_available:
+        return _ask_size(session_id, product, data)
+    _save_draft(session_id, "color", data)
+    return {
+        "reply": f"🛒 Bạn muốn đặt **{product['name']}**. Chọn **màu** nào ạ?\n\n"
+        + f"Các màu còn hàng: {', '.join(colors_available)}",
+        "intent": "order_create",
+        "action": "ask_clarify",
+        "entities": data,
+        "confidence": 0.85,
+        "sources": ["db:product_variants"],
+    }, True
+
+
+def _ask_size(session_id, product, data):
+    sizes_available = _available_sizes(product, data.get("color"))
+    _save_draft(session_id, "size", data)
+    color_text = f" màu **{data['color']}**" if data.get("color") else ""
+    return {
+        "reply": f"Bạn chọn **size** nào cho **{product['name']}**{color_text}?\n\n"
+        + f"Các size còn hàng: {', '.join(sizes_available) if sizes_available else 'Liên hệ shop'}",
+        "intent": "order_create",
+        "action": "ask_clarify",
+        "entities": data,
+        "confidence": 0.85,
+        "sources": ["db:product_variants"],
+    }, True
+
+
+def _confirm_variant_and_ask_name(session_id, product, data):
+    variant = _find_order_variant(product, data.get("color"), data.get("size"))
+    if variant is None:
+        if data.get("size"):
+            return _ask_color(session_id, product, data)
+        return _ask_size(session_id, product, data)
+    data["price"] = variant["price"]
+    data["variant_id"] = variant["variant_id"]
+    if variant.get("color"):
+        data["color"] = variant["color"]
+    if variant.get("size"):
+        data["size"] = variant["size"]
+    if data.get("customer_name") and data.get("phone") and data.get("address"):
+        return _confirm_order_summary(session_id, data)
+    _save_draft(session_id, "name", data)
+    return {
+        "reply": f"🛒 Chốt **{product['name']}** màu **{data.get('color', '')}** size **{data.get('size', '')}**"
+        + f" – **{_fmt_price(data.get('price') or product.get('base_price'))}**"
+        + "\n\nCho mình biết **họ tên** người nhận nhé!",
+        "intent": "order_create",
+        "action": "ask_clarify",
+        "entities": data,
+        "confidence": 0.9,
+        "sources": ["db:product_variants"],
+    }, True
 
 
 def _try_rule_based(message, catalog):
@@ -535,6 +650,112 @@ def _try_rule_based(message, catalog):
     return None, False
 
 
+def _product_price_text(product):
+    prices = sorted({v["price"] for v in product.get("variants", []) if v.get("price")})
+    if not prices:
+        return _fmt_price(product.get("base_price") or 0)
+    if len(prices) == 1:
+        return _fmt_price(prices[0])
+    return f"{_fmt_price(prices[0])} - {_fmt_price(prices[-1])}"
+
+
+def _try_fast_common_response(message, catalog):
+    norm = _normalize(message)
+    tokens = set(norm.split())
+
+    if "xin chao" in norm or tokens.intersection({"chao", "hello", "hi"}):
+        return {
+            "reply": "Chào bạn! Mình có thể hỗ trợ xem sản phẩm, giá, size, phí ship hoặc đặt hàng ngay trên chat.",
+            "intent": "greeting",
+            "action": "none",
+            "entities": {},
+            "confidence": 0.9,
+            "sources": ["system:fast_reply"],
+        }, True
+
+    if any(w in norm for w in ["ship", "phi ship", "giao hang", "van chuyen"]):
+        return {
+            "reply": "Phí ship hiện tại là **đồng giá 30,000 VND cho mọi đơn hàng**. Shop sẽ xác nhận và giao trong khoảng 1-3 ngày.",
+            "intent": "ask_policy",
+            "action": "none",
+            "entities": {"shipping_fee": CHATBOT_SHIPPING_FEE},
+            "confidence": 0.95,
+            "sources": ["system:shipping_policy"],
+        }, True
+
+    asks_catalog = any(
+        w in norm
+        for w in [
+            "xem san pham",
+            "san pham",
+            "catalog",
+            "co nhung gi",
+            "mau ao",
+            "xem hang",
+            "danh sach",
+        ]
+    )
+    asks_general_price = any(w in norm for w in ["gia", "bao nhieu", "nhieu tien", "bang gia"])
+    if asks_catalog or asks_general_price:
+        lines = []
+        for product in catalog[:6]:
+            sizes = _available_sizes(product)
+            lines.append(
+                f"- **{product['name']}**: {_product_price_text(product)}"
+                + (f" | Size: {', '.join(sizes)}" if sizes else "")
+            )
+        if not lines:
+            reply = "Hiện shop chưa có sản phẩm đang bán. Bạn quay lại sau giúp mình nhé!"
+        else:
+            reply = (
+                "Một số sản phẩm hiện có:\n\n"
+                + "\n".join(lines)
+                + "\n\nBạn muốn đặt hoặc xem chi tiết mẫu nào?"
+            )
+        return {
+            "reply": reply,
+            "intent": "ask_catalog" if asks_catalog else "ask_price",
+            "action": "none",
+            "entities": {},
+            "confidence": 0.9,
+            "sources": ["db:products", "db:product_variants"],
+        }, True
+
+    if any(w in norm for w in ["thanh toan", "cod", "chuyen khoan", "vnpay", "tra tien"]):
+        return {
+            "reply": "Shop hỗ trợ **COD** khi đặt qua chatbot. Ở trang checkout website có thể chọn thêm các phương thức thanh toán đang bật như chuyển khoản hoặc VNPay.",
+            "intent": "ask_payment",
+            "action": "none",
+            "entities": {},
+            "confidence": 0.9,
+            "sources": ["system:payment_policy"],
+        }, True
+
+    if any(w in norm for w in ["doi tra", "doi size", "doi mau", "hoan tien", "loi", "nguyen tem"]):
+        return {
+            "reply": "Shop hỗ trợ đổi trả khi sản phẩm còn nguyên tem và đủ điều kiện. Nếu cần đổi size/màu, bạn gửi mã đơn và tình trạng sản phẩm để shop kiểm tra nhanh nhé.",
+            "intent": "ask_policy",
+            "action": "none",
+            "entities": {},
+            "confidence": 0.85,
+            "sources": ["system:return_policy"],
+        }, True
+
+    if any(w in norm for w in ["nhan vat", "di san", "qr", "podcast"]):
+        characters = sorted({p["character"] for p in catalog if p.get("character")})
+        reply = "Các mẫu áo Nếp Thanh gắn với nhân vật/di sản như: " + ", ".join(characters[:8]) + "."
+        return {
+            "reply": reply + " Bạn muốn nghe câu chuyện của nhân vật nào?",
+            "intent": "recommend",
+            "action": "none",
+            "entities": {},
+            "confidence": 0.75,
+            "sources": ["db:characters", "db:products"],
+        }, True
+
+    return None, False
+
+
 # ---------------------------------------------------------------------------
 # Detect ordering intent keywords
 # ---------------------------------------------------------------------------
@@ -564,12 +785,21 @@ def _is_cancel_intent(text):
     )
 
 
+def _is_keep_current_intent(text):
+    norm = _normalize(text)
+    return any(
+        w in norm
+        for w in ["giu nguyen", "khong doi", "khong thay doi", "nhu cu", "giu lai"]
+    )
+
+
 # ---------------------------------------------------------------------------
 # Order draft state machine
 # ---------------------------------------------------------------------------
 
 
-ORDER_STEPS = ["product", "confirm_product", "name", "phone", "address", "confirm"]
+ORDER_STEPS = ["product", "size", "color", "name", "phone", "address", "confirm", "edit"]
+CHATBOT_SHIPPING_FEE = 30000
 
 
 def _get_draft(session_id):
@@ -605,6 +835,144 @@ def _delete_draft(session_id):
     conn.close()
 
 
+def _confirm_order_summary(session_id, data):
+    ship_fee = CHATBOT_SHIPPING_FEE
+    data["ship_fee"] = ship_fee
+    price = data.get("price") or 0
+    total = int(price) + ship_fee
+    address = data.get("address", "")
+
+    _save_draft(session_id, "confirm", data)
+    return {
+        "reply": (
+            "📋 **Xác nhận đơn hàng:**\n\n"
+            f"🏷️ Sản phẩm: **{data.get('product_name', '?')}** – Size {data.get('size', '?')}"
+            + (f" / {data.get('color', '')}" if data.get("color") else "")
+            + f"\n💰 Giá: **{_fmt_price(price)}**"
+            + f"\n🚚 Phí ship: **{ship_fee:,} VND**"
+            + f"\n💵 **Tổng: {total:,} VND**"
+            + f"\n\n👤 {data.get('customer_name', '?')}"
+            + f"\n📞 {data.get('phone', '?')}"
+            + f"\n📍 {address}"
+            + "\n\nGõ **\"OK\"** để xác nhận, hoặc **\"sửa\"** để thay đổi, **\"huỷ\"** để hủy đơn."
+        ),
+        "intent": "order_create",
+        "action": "ask_clarify",
+        "entities": data,
+        "confidence": 0.95,
+        "sources": [],
+    }, True
+
+
+def _ask_edit_choice(session_id, data):
+    _save_draft(session_id, "edit", data)
+    return {
+        "reply": (
+            "Bạn muốn sửa mục nào?\n\n"
+            "- **sản phẩm**\n"
+            "- **size**\n"
+            "- **màu**\n"
+            "- **họ tên**\n"
+            "- **số điện thoại**\n"
+            "- **địa chỉ**\n\n"
+            "Bạn có thể gõ ví dụ: **sửa màu**, **sửa size**, hoặc chỉ gõ tên mục muốn sửa."
+        ),
+        "intent": "order_create",
+        "action": "ask_clarify",
+        "entities": data,
+        "confidence": 0.85,
+        "sources": [],
+    }, True
+
+
+def _handle_edit_choice(session_id, message, catalog, data):
+    norm = _normalize(message)
+    product_match = next((p for p in catalog if p["id"] == data.get("product_id")), None)
+
+    if any(w in norm for w in ["san pham", "product"]):
+        for key in ["product_name", "product_id", "product_slug", "size", "color", "variant_id", "price"]:
+            data.pop(key, None)
+        _save_draft(session_id, "product", data)
+        return {
+            "reply": "Bạn muốn đổi sang **sản phẩm** nào?",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    if any(w in norm for w in ["size", "kich co", "co ao"]):
+        data.pop("size", None)
+        data.pop("color", None)
+        data.pop("variant_id", None)
+        data.pop("price", None)
+        if product_match:
+            return _ask_size(session_id, product_match, data)
+        _save_draft(session_id, "product", data)
+        return {
+            "reply": "Bạn muốn đổi sang sản phẩm/size nào?",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    if any(w in norm for w in ["mau", "color"]):
+        data.pop("color", None)
+        data.pop("variant_id", None)
+        data.pop("price", None)
+        if product_match and data.get("size"):
+            return _ask_color(session_id, product_match, data)
+        if product_match:
+            return _ask_size(session_id, product_match, data)
+        _save_draft(session_id, "product", data)
+        return {
+            "reply": "Bạn muốn đổi sang sản phẩm/màu nào?",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    if any(w in norm for w in ["ho ten", "ten", "nguoi nhan"]):
+        _save_draft(session_id, "name", data)
+        return {
+            "reply": "Bạn nhập lại **họ tên** người nhận nhé (hoặc gõ **giữ nguyên** nếu không đổi):",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    if any(w in norm for w in ["so dien thoai", "dien thoai", "sdt", "phone"]):
+        _save_draft(session_id, "phone", data)
+        return {
+            "reply": "Bạn nhập lại **số điện thoại** nhận hàng nhé (hoặc gõ **giữ nguyên** nếu không đổi):",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    if any(w in norm for w in ["dia chi", "address", "noi nhan"]):
+        _save_draft(session_id, "address", data)
+        return {
+            "reply": "Bạn nhập lại **địa chỉ giao hàng** nhé (hoặc gõ **giữ nguyên** nếu không đổi):",
+            "intent": "order_create",
+            "action": "ask_clarify",
+            "entities": data,
+            "confidence": 0.85,
+            "sources": [],
+        }, True
+
+    return _ask_edit_choice(session_id, data)
+
+
 def _handle_order_flow(session_id, message, catalog):
     """Handle the order draft state machine. Return (response_dict, handled)."""
     draft = _get_draft(session_id)
@@ -638,48 +1006,15 @@ def _handle_order_flow(session_id, message, catalog):
             if size:
                 data["size"] = size
             if color:
-                data["color"] = color
+                matched_color = _match_color_choice(message, _available_colors(product))
+                if matched_color:
+                    data["color"] = matched_color
 
-            # Check if we have enough to go to name
-            if size:
-                # Find variant price
-                for v in product["variants"]:
-                    if (v["size"] or "").upper() == size:
-                        if not color or _normalize(v["color"] or "") == _normalize(
-                            color or ""
-                        ):
-                            data["price"] = v["price"]
-                            data["variant_id"] = v["variant_id"]
-                            if v["color"]:
-                                data["color"] = v["color"]
-                            break
-                _save_draft(session_id, "name", data)
-                return {
-                    "reply": f"🛒 Chốt **{product['name']}** size **{size}**"
-                    + (f" màu **{data.get('color', '')}**" if data.get("color") else "")
-                    + f" – **{_fmt_price(data.get('price') or product.get('base_price'))}**"
-                    + "\n\nCho mình biết **họ tên** người nhận nhé!",
-                    "intent": "order_create",
-                    "action": "ask_clarify",
-                    "entities": data,
-                    "confidence": 0.9,
-                    "sources": ["db:product_variants"],
-                }, True
-            else:
-                # Need size
-                sizes_available = sorted(
-                    set(v["size"] for v in product["variants"] if v["size"] and v["stock"] > 0)
-                )
-                _save_draft(session_id, "product", data)
-                return {
-                    "reply": f"🛒 Bạn muốn đặt **{product['name']}**. Size nào ạ?\n\n"
-                    + f"Các size còn hàng: {', '.join(sizes_available) if sizes_available else 'Liên hệ shop'}",
-                    "intent": "order_create",
-                    "action": "ask_clarify",
-                    "entities": data,
-                    "confidence": 0.85,
-                    "sources": ["db:product_variants"],
-                }, True
+            if data.get("color") and data.get("size"):
+                return _confirm_variant_and_ask_name(session_id, product, data)
+            if data.get("size"):
+                return _ask_color(session_id, product, data)
+            return _ask_size(session_id, product, data)
         else:
             _save_draft(session_id, "product", data)
             return {
@@ -706,56 +1041,24 @@ def _handle_order_flow(session_id, message, catalog):
         if size:
             data["size"] = size
         if color:
-            data["color"] = color
+            product_match_for_color = product or next(
+                (p for p in catalog if p["id"] == data.get("product_id")), None
+            )
+            if product_match_for_color:
+                matched_color = _match_color_choice(message, _available_colors(product_match_for_color))
+                if matched_color:
+                    data["color"] = matched_color
 
-        if data.get("product_id") and data.get("size"):
+        if data.get("product_id"):
             product_match = next(
                 (p for p in catalog if p["id"] == data["product_id"]), None
             )
             if product_match:
-                for v in product_match["variants"]:
-                    if (v["size"] or "").upper() == data["size"].upper():
-                        if not data.get("color") or _normalize(
-                            v["color"] or ""
-                        ) == _normalize(data.get("color", "")):
-                            data["price"] = v["price"]
-                            data["variant_id"] = v["variant_id"]
-                            if v["color"]:
-                                data["color"] = v["color"]
-                            break
-            _save_draft(session_id, "name", data)
-            return {
-                "reply": f"OK! **{data['product_name']}** size **{data['size']}**"
-                + (f" màu **{data.get('color', '')}**" if data.get("color") else "")
-                + "\n\nCho mình biết **họ tên** người nhận nhé!",
-                "intent": "order_create",
-                "action": "ask_clarify",
-                "entities": data,
-                "confidence": 0.9,
-                "sources": [],
-            }, True
-        elif data.get("product_id") and not data.get("size"):
-            product_match = next(
-                (p for p in catalog if p["id"] == data["product_id"]), None
-            )
-            sizes = []
-            if product_match:
-                sizes = sorted(
-                    set(
-                        v["size"]
-                        for v in product_match["variants"]
-                        if v["size"] and v["stock"] > 0
-                    )
-                )
-            _save_draft(session_id, "product", data)
-            return {
-                "reply": f"Bạn chọn **size** nào? Các size còn hàng: {', '.join(sizes) if sizes else 'Liên hệ shop'}",
-                "intent": "order_create",
-                "action": "ask_clarify",
-                "entities": data,
-                "confidence": 0.85,
-                "sources": [],
-            }, True
+                if data.get("color") and data.get("size"):
+                    return _confirm_variant_and_ask_name(session_id, product_match, data)
+                if data.get("size"):
+                    return _ask_color(session_id, product_match, data)
+                return _ask_size(session_id, product_match, data)
         else:
             _save_draft(session_id, "product", data)
             return {
@@ -767,8 +1070,73 @@ def _handle_order_flow(session_id, message, catalog):
                 "sources": [],
             }, True
 
+    if step == "color":
+        product_match = next(
+            (p for p in catalog if p["id"] == data.get("product_id")), None
+        )
+        if not product_match:
+            _save_draft(session_id, "product", data)
+            return {
+                "reply": "Mình chưa xác định được sản phẩm. Bạn cho mình biết **tên sản phẩm** cụ thể nhé!",
+                "intent": "order_create",
+                "action": "ask_clarify",
+                "entities": data,
+                "confidence": 0.7,
+                "sources": [],
+            }, True
+        color_choice = _match_color_choice(message, _available_colors(product_match, data.get("size")))
+        if not color_choice:
+            return _ask_color(session_id, product_match, data)
+        data["color"] = color_choice
+        size = _extract_size(message)
+        if size:
+            data["size"] = size
+        if data.get("size"):
+            return _confirm_variant_and_ask_name(session_id, product_match, data)
+        return _ask_size(session_id, product_match, data)
+
+    if step == "size":
+        product_match = next(
+            (p for p in catalog if p["id"] == data.get("product_id")), None
+        )
+        if not product_match:
+            _save_draft(session_id, "product", data)
+            return {
+                "reply": "Mình chưa xác định được sản phẩm. Bạn cho mình biết **tên sản phẩm** cụ thể nhé!",
+                "intent": "order_create",
+                "action": "ask_clarify",
+                "entities": data,
+                "confidence": 0.7,
+                "sources": [],
+            }, True
+        size = _extract_size(message)
+        if not size:
+            return _ask_size(session_id, product_match, data)
+        data["size"] = size
+        color_choice = _match_color_choice(message, _available_colors(product_match, data.get("size")))
+        if color_choice:
+            data["color"] = color_choice
+        if data.get("color"):
+            return _confirm_variant_and_ask_name(session_id, product_match, data)
+        return _ask_color(session_id, product_match, data)
+
+    if step == "edit":
+        return _handle_edit_choice(session_id, message, catalog, data)
+
     if step == "name":
         name = message.strip()
+        if _is_keep_current_intent(name) and data.get("customer_name"):
+            if data.get("phone") and data.get("address"):
+                return _confirm_order_summary(session_id, data)
+            _save_draft(session_id, "phone", data)
+            return {
+                "reply": f"OK, mình giữ tên **{data['customer_name']}**. Cho mình **số điện thoại** nhận hàng nhé!",
+                "intent": "order_create",
+                "action": "ask_clarify",
+                "entities": data,
+                "confidence": 0.9,
+                "sources": [],
+            }, True
         if len(name) < 2:
             return {
                 "reply": "Tên hơi ngắn, bạn nhập **họ tên đầy đủ** giúp mình nhé!",
@@ -779,6 +1147,8 @@ def _handle_order_flow(session_id, message, catalog):
                 "sources": [],
             }, True
         data["customer_name"] = name
+        if data.get("phone") and data.get("address"):
+            return _confirm_order_summary(session_id, data)
         _save_draft(session_id, "phone", data)
         return {
             "reply": f"Cảm ơn **{name}**! Cho mình **số điện thoại** nhận hàng nhé!",
@@ -787,9 +1157,21 @@ def _handle_order_flow(session_id, message, catalog):
             "entities": data,
             "confidence": 0.9,
             "sources": [],
-        }, True
+            }, True
 
     if step == "phone":
+        if _is_keep_current_intent(message) and data.get("phone"):
+            if data.get("address"):
+                return _confirm_order_summary(session_id, data)
+            _save_draft(session_id, "address", data)
+            return {
+                "reply": "OK, mình giữ **số điện thoại** cũ. Cho mình **địa chỉ giao hàng** nhé!",
+                "intent": "order_create",
+                "action": "ask_clarify",
+                "entities": data,
+                "confidence": 0.9,
+                "sources": [],
+            }, True
         phone = re.sub(r"[^0-9+]", "", message.strip())
         if len(phone) < 9:
             return {
@@ -801,6 +1183,8 @@ def _handle_order_flow(session_id, message, catalog):
                 "sources": [],
             }, True
         data["phone"] = phone
+        if data.get("address"):
+            return _confirm_order_summary(session_id, data)
         _save_draft(session_id, "address", data)
         return {
             "reply": "📍 Cho mình **địa chỉ giao hàng** (bao gồm phường/quận/tỉnh) nhé!",
@@ -813,6 +1197,8 @@ def _handle_order_flow(session_id, message, catalog):
 
     if step == "address":
         address = message.strip()
+        if _is_keep_current_intent(address) and data.get("address"):
+            address = data["address"]
         if len(address) < 10:
             return {
                 "reply": "Địa chỉ hơi ngắn, bạn ghi đầy đủ **số nhà, phường/xã, quận/huyện, tỉnh/thành** giúp mình nhé!",
@@ -823,45 +1209,7 @@ def _handle_order_flow(session_id, message, catalog):
                 "sources": [],
             }, True
         data["address"] = address
-        # Estimate shipping
-        ship_fee = 30000
-        norm_addr = _normalize(address)
-        if "ha noi" in norm_addr or "hn" in norm_addr:
-            ship_fee = 20000
-        elif "ho chi minh" in norm_addr or "hcm" in norm_addr or "tp.hcm" in norm_addr or "sai gon" in norm_addr:
-            ship_fee = 25000
-        elif "mien trung" in norm_addr or "da nang" in norm_addr or "hue" in norm_addr:
-            ship_fee = 35000
-        data["ship_fee"] = ship_fee
-
-        price = data.get("price") or 0
-        total = int(price) + ship_fee
-        if int(price) >= 500000:
-            ship_fee = 0
-            total = int(price)
-            data["ship_fee"] = 0
-
-        _save_draft(session_id, "confirm", data)
-        return {
-            "reply": (
-                "📋 **Xác nhận đơn hàng:**\n\n"
-                f"🏷️ Sản phẩm: **{data.get('product_name', '?')}** – Size {data.get('size', '?')}"
-                + (f" / {data.get('color', '')}" if data.get("color") else "")
-                + f"\n💰 Giá: **{_fmt_price(price)}**"
-                + f"\n🚚 Phí ship: **{ship_fee:,} VND**"
-                + (f" _(miễn phí ship đơn ≥500k)_" if ship_fee == 0 and int(price) >= 500000 else "")
-                + f"\n💵 **Tổng: {total:,} VND**"
-                + f"\n\n👤 {data.get('customer_name', '?')}"
-                + f"\n📞 {data.get('phone', '?')}"
-                + f"\n📍 {address}"
-                + "\n\nGõ **\"OK\"** để xác nhận, hoặc **\"sửa\"** để thay đổi, **\"huỷ\"** để hủy đơn."
-            ),
-            "intent": "order_create",
-            "action": "ask_clarify",
-            "entities": data,
-            "confidence": 0.95,
-            "sources": [],
-        }, True
+        return _confirm_order_summary(session_id, data)
 
     if step == "confirm":
         norm = _normalize(message)
@@ -876,26 +1224,7 @@ def _handle_order_flow(session_id, message, catalog):
                 "sources": [],
             }, True
         elif any(w in norm for w in ["sua", "thay doi", "edit", "doi"]):
-            # Check what they want to change
-            if any(w in norm for w in ["size"]):
-                _save_draft(session_id, "product", data)
-                return {
-                    "reply": "Bạn muốn đổi sang size nào?",
-                    "intent": "order_create",
-                    "action": "ask_clarify",
-                    "entities": data,
-                    "confidence": 0.85,
-                    "sources": [],
-                }, True
-            _save_draft(session_id, "name", data)
-            return {
-                "reply": "OK! Bạn nhập lại **họ tên** người nhận nhé (hoặc gõ giữ nguyên nếu không đổi):",
-                "intent": "order_create",
-                "action": "ask_clarify",
-                "entities": data,
-                "confidence": 0.85,
-                "sources": [],
-            }, True
+            return _handle_edit_choice(session_id, message, catalog, data)
         else:
             return {
                 "reply": "Bạn gõ **\"OK\"** để xác nhận đặt hàng, **\"sửa\"** để chỉnh, hoặc **\"huỷ\"** để hủy nhé!",
@@ -1166,11 +1495,63 @@ def chat(session_id, message, user_id=None):
         )
         return result
 
-    # 4. RAG fallback – local vector search (role-guarded, grounded on DB data)
-    from modules.rag import rag_answer
-    result = rag_answer(message)
+    # 4. Fast answers for common shop questions before heavier AI/RAG fallback.
+    result, handled = _try_fast_common_response(message, catalog)
+    if handled:
+        _log_message(
+            session_id,
+            "assistant",
+            result["reply"],
+            result.get("intent"),
+            result.get("action"),
+            result.get("confidence"),
+            result.get("sources"),
+        )
+        return result
 
-    # 5. Nếu RAG không đủ tin cậy VÀ Gemini có key → thử Gemini
+    # 5. RAG fallback – local vector search (role-guarded, grounded on DB data)
+    from modules.rag import is_ready as rag_is_ready
+    from modules.rag import rag_answer, warmup_async
+    if not rag_is_ready():
+        warmup_async()
+        result = {
+            "reply": (
+                "Mình đang tải dữ liệu hỗ trợ, bạn hỏi cụ thể hơn về sản phẩm, giá, size, phí ship hoặc đặt hàng để mình xử lý nhanh nhé."
+            ),
+            "intent": "other",
+            "action": "handoff",
+            "entities": {},
+            "confidence": 0.0,
+            "sources": [],
+        }
+        _log_message(
+            session_id,
+            "assistant",
+            result["reply"],
+            result.get("intent"),
+            result.get("action"),
+            result.get("confidence"),
+            result.get("sources"),
+        )
+        return result
+
+    try:
+        result = rag_answer(message)
+    except Exception as exc:
+        print(f"[Chatbot] RAG fallback failed: {exc}")
+        result = {
+            "reply": (
+                "Mình chưa tìm thấy thông tin phù hợp trong hệ thống. "
+                "Bạn có thể hỏi cụ thể hơn hoặc liên hệ shop qua email nepthanh6886@gmail.com nhé!"
+            ),
+            "intent": "other",
+            "action": "handoff",
+            "entities": {},
+            "confidence": 0.0,
+            "sources": [],
+        }
+
+    # 6. Nếu RAG không đủ tin cậy VÀ Gemini có key → thử Gemini
     if result.get("confidence", 0) < 0.4 and result.get("intent") not in ("out_of_scope", "greeting"):
         model = _get_gemini()
         if model is not None:

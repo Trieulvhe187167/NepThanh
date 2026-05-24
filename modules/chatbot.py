@@ -721,9 +721,9 @@ def _try_fast_common_response(message, catalog):
             "sources": ["db:products", "db:product_variants"],
         }, True
 
-    if any(w in norm for w in ["thanh toan", "cod", "chuyen khoan", "vnpay", "tra tien"]):
+    if any(w in norm for w in ["thanh toan", "cod", "chuyen khoan", "tra tien"]):
         return {
-            "reply": "Shop hỗ trợ **COD** khi đặt qua chatbot. Ở trang checkout website có thể chọn thêm các phương thức thanh toán đang bật như chuyển khoản hoặc VNPay.",
+            "reply": "Shop hỗ trợ **COD** khi đặt qua chatbot. Ở trang checkout website có thể chọn thêm **chuyển khoản ngân hàng/QR** nếu phương thức này đang bật.",
             "intent": "ask_payment",
             "action": "none",
             "entities": {},

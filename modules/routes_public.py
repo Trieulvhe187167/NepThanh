@@ -369,6 +369,8 @@ def register_public_routes(app):
         if request.method == "POST":
             for key in form_values:
                 form_values[key] = (request.form.get(key) or "").strip()
+            if form_values.get("payment_method") == "vnpay":
+                form_values["payment_method"] = "cod"
             result = place_order_from_cart(
                 user=user,
                 form_data=request.form,
@@ -430,6 +432,9 @@ def register_public_routes(app):
             "ghn_district_id": request.form.get("ghn_district_id", ""),
             "ghn_ward_code": request.form.get("ghn_ward_code", ""),
         }
+        payment_method = (request.form.get("payment_method") or "cod").strip().lower()
+        if payment_method == "vnpay":
+            payment_method = "cod"
         conn = _get_db()
         try:
             quotes = quote_shipping_options(
@@ -437,7 +442,7 @@ def register_public_routes(app):
                 cart,
                 address,
                 request.form.get("shipping_method"),
-                request.form.get("payment_method"),
+                payment_method,
             )
         finally:
             conn.close()

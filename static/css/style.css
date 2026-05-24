@@ -4486,10 +4486,7 @@ main.character-main>.container {
 }
 
 .auth-branding-side::before {
-    content: "";
-    width: min(260px, 78%);
-    height: 120px;
-    background: url("/static/images/logo/logo3.png") center / contain no-repeat;
+    content: none;
 }
 
 .auth-branding-side::after {
@@ -4507,7 +4504,12 @@ main.character-main>.container {
 }
 
 .auth-branding-side .auth-logo {
-    display: none;
+    display: block;
+    position: relative;
+    z-index: 1;
+    width: min(260px, 78%);
+    height: auto;
+    object-fit: contain;
 }
 
 .auth-branding-text {
@@ -4588,9 +4590,8 @@ main.character-main>.container {
         padding: 1.6rem 1.4rem;
     }
 
-    .auth-branding-side::before {
+    .auth-branding-side .auth-logo {
         width: min(220px, 74%);
-        height: 88px;
     }
 
     .auth-branding-side::after {

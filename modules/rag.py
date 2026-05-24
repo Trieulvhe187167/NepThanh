@@ -124,7 +124,7 @@ _IN_SCOPE_KEYWORDS = [
     # Sản phẩm & mua hàng
     "ao", "san pham", "size", "mau", "gia", "bao nhieu", "dat hang", "mua",
     "order", "don hang", "cart", "gio hang", "chot", "thanh toan", "cod",
-    "chuyen khoan", "vnpay", "hoa don",
+    "chuyen khoan", "hoa don",
     # Vận chuyển & đổi trả
     "ship", "giao hang", "doi tra", "hoan tien", "doi size", "doi mau",
     "loi", "nguyen tem", "phi ship", "freeship", "van chuyen",
@@ -807,7 +807,7 @@ def rag_answer(query, top_k=4):
     elif intent == "ask_policy":
         cta = "\n\n📞 Nếu cần hỗ trợ thêm, liên hệ shop qua **nepthanh6886@gmail.com** nhé!"
     elif intent == "ask_payment":
-        cta = "\n\n✅ Shop hỗ trợ COD, chuyển khoản và VNPay toàn quốc!"
+        cta = "\n\n✅ Shop hỗ trợ COD và chuyển khoản ngân hàng toàn quốc!"
 
     # Cảnh báo độ tin cậy thấp
     if confidence < 0.45:

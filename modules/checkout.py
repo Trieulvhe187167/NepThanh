@@ -416,10 +416,10 @@ def place_order_from_cart(user, form_data, remote_addr, vnpay_return_url):
     payment_method = (form_data.get("payment_method") or "cod").strip().lower()
     shipping_method = (form_data.get("shipping_method") or "").strip()
 
-    if payment_method not in {"cod", "vnpay", "bank_transfer"}:
+    if payment_method == "vnpay":
+        return {"ok": False, "error": "VNPay đang tạm thời tắt. Vui lòng chọn COD hoặc chuyển khoản ngân hàng."}
+    if payment_method not in {"cod", "bank_transfer"}:
         return {"ok": False, "error": "Phương thức thanh toán không hợp lệ."}
-    if payment_method == "vnpay" and not vnpay_enabled():
-        return {"ok": False, "error": "VNPay chưa được cấu hình."}
     if payment_method == "bank_transfer" and not bank_transfer_enabled():
         return {"ok": False, "error": "Chuyển khoản ngân hàng chưa được cấu hình."}
     if not recipient_name:

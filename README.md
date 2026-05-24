@@ -1,6 +1,6 @@
 # Nếp Thanh
 
-Website thương mại điện tử cho thương hiệu áo phông di sản Việt Nam **Nếp Thanh - Dòng chảy thanh âm Việt**. Dự án được xây bằng Flask, có trang bán hàng public, giỏ hàng, checkout, quản trị sản phẩm/đơn hàng/kho, mã giảm giá, flash sale, QR nhân vật, chatbot CSKH, email, VNPay và tính phí vận chuyển qua đơn vị giao hàng.
+Website thương mại điện tử cho thương hiệu áo phông di sản Việt Nam **Nếp Thanh - Dòng chảy thanh âm Việt**. Dự án được xây bằng Flask, có trang bán hàng public, giỏ hàng, checkout, quản trị sản phẩm/đơn hàng/kho, mã giảm giá, flash sale, QR nhân vật, chatbot CSKH, email, thanh toán COD/chuyển khoản và tính phí vận chuyển qua đơn vị giao hàng.
 
 ## Tính năng chính
 
@@ -8,7 +8,7 @@ Website thương mại điện tử cho thương hiệu áo phông di sản Vi�
 - Tài khoản khách hàng: đăng ký, đăng nhập, quên mật khẩu, đổi mật khẩu, xác thực email, quản lý địa chỉ giao hàng.
 - Quản trị: dashboard, sản phẩm, biến thể size/màu, tồn kho, đơn hàng, khách hàng, nội dung, marketing, coupon, flash sale, QR/nhân vật, báo cáo, phân quyền.
 - Bán hàng: áp mã giảm giá, flash sale, trừ/hoàn tồn kho, email xác nhận đơn, cập nhật trạng thái đơn.
-- Thanh toán: COD và VNPay.
+- Thanh toán: COD và chuyển khoản ngân hàng/QR. VNPay đang tạm tắt.
 - Vận chuyển: tính phí qua GHN, có cấu trúc mở rộng cho GHTK/Viettel Post và phí dự phòng.
 - Chatbot: hỗ trợ tư vấn sản phẩm/chính sách bằng RAG và Gemini nếu cấu hình API key.
 
@@ -123,7 +123,7 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 ```
 
-### VNPay
+### VNPay (tạm tắt)
 
 ```env
 VNPAY_TMN_CODE=
@@ -216,7 +216,7 @@ Khi deploy, cần cấu hình biến môi trường trên nền tảng deploy, t
 - `ADMIN_PASSWORD`
 - Database production như `TURSO_DATABASE_URL` và `TURSO_AUTH_TOKEN`
 - SMTP nếu dùng xác thực email/quên mật khẩu
-- VNPay nếu bật thanh toán online
+- VNPay nếu bật lại thanh toán online
 - GHN nếu muốn tính phí vận chuyển thật
 
 Lưu ý: trên Vercel, thư mục `/tmp` là tạm thời. Không nên dùng SQLite file làm database chính cho production trên serverless. Hãy dùng Turso/libSQL hoặc database cloud phù hợp.
@@ -226,4 +226,4 @@ Lưu ý: trên Vercel, thư mục `/tmp` là tạm thời. Không nên dùng SQL
 - Không commit `.env`, database SQLite hoặc file bí mật.
 - Backup database thường xuyên trước khi deploy thay đổi lớn.
 - Với shop thật có đơn hàng và tồn kho, nên dùng database production có backup/monitoring.
-- Sau khi đổi cấu hình GHN/VNPay/SMTP, nên test lại toàn bộ luồng checkout: giỏ hàng, tính ship, đặt COD, thanh toán VNPay, email xác nhận và cập nhật tồn kho.
+- Sau khi đổi cấu hình GHN/SMTP hoặc bật lại VNPay, nên test lại toàn bộ luồng checkout: giỏ hàng, tính ship, đặt COD, chuyển khoản/VNPay, email xác nhận và cập nhật tồn kho.

@@ -61,7 +61,7 @@ def _resolve_product_image(image_url, product_slug, character_slug=None):
                 stems.append(stripped)
     return (
         _find_static_asset(("images/shirt", "images/products", "uploads/products", "images"), stems)
-        or "images/logo/logo3.png"
+        or "images/logo/logo.png"
     )
 
 
@@ -731,7 +731,7 @@ def _eligible_product_ids(conn, coupon_id, applies_to):
 
 def _estimate_shipping(conn, discounted_subtotal, shipping_zone):
     return {
-        "fee": 0,
-        "estimated": False,
-        "label": "Tính phí vận chuyển ở bước thanh toán",
+        "fee": DEFAULT_SHIPPING_FEE,
+        "estimated": True,
+        "label": "Phí vận chuyển cố định",
     }

@@ -118,6 +118,9 @@
                             <small>Đặt hàng trước, quét QR chuyển khoản đúng số tiền và nội dung</small>
                         </span>
                     </label>
+                    {#
+                    VNPay is temporarily disabled. Keep this block here so it can
+                    be restored quickly when the payment gateway is ready again.
                     <label class="payment-option">
                         <input type="radio" name="payment_method" value="vnpay" {% if form_values.payment_method == "vnpay" %}checked{% endif %} />
                         <span>
@@ -125,6 +128,7 @@
                             <small>Thanh toán online qua cổng VNPay</small>
                         </span>
                     </label>
+                    #}
                 </div>
                 <label>
                     Ghi chú đơn hàng
@@ -403,4 +407,3 @@
 })();
 </script>
 {% endblock %}
-

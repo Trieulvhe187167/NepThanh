@@ -130,6 +130,9 @@
                         </label>
                     </div>
                     <p class="player-status" data-player-status></p>
+                    <button type="button" class="player-unlock-button is-hidden" data-player-unlock>
+                        Bật nhạc
+                    </button>
                     {% if character.audio_source_url %}
                     <a class="player-source-link" href="{{ character.audio_source_url }}" target="_blank"
                         rel="noopener">
@@ -575,6 +578,7 @@
             this.progressCurrent = container.querySelector("[data-progress-current]");
             this.progressTotal = container.querySelector("[data-progress-total]");
             this.status = container.querySelector("[data-player-status]");
+            this.unlockButton = container.querySelector("[data-player-unlock]");
             this.title = container.querySelector("[data-track-title]");
             this.description = container.querySelector("[data-track-description]");
             this.bars = Array.prototype.slice.call(container.querySelectorAll(".player-visualizer span"));
@@ -584,6 +588,7 @@
             this.audioContext = null;
             this.analyser = null;
             this.sourceNode = null;
+            this.gainNode = null;
             this.frameId = null;
             this.unlockPending = false;
             this.isPlaying = false;
@@ -605,6 +610,20 @@
             this.status.textContent = message;
         };
 
+        AudioTrackPlayer.prototype._showUnlockButton = function () {
+            if (!this.unlockButton) {
+                return;
+            }
+            this.unlockButton.classList.remove("is-hidden");
+        };
+
+        AudioTrackPlayer.prototype._hideUnlockButton = function () {
+            if (!this.unlockButton) {
+                return;
+            }
+            this.unlockButton.classList.add("is-hidden");
+        };
+
         AudioTrackPlayer.prototype._bind = function () {
             var self = this;
             this.toggleButton.addEventListener("click", function () {
@@ -616,16 +635,28 @@
             });
             this.muteButton.addEventListener("click", function () {
                 self.isMuted = !self.isMuted;
-                self._applyVolume();
+                self._applyVolume(true);
             });
             this.seekButtons.forEach(function (button) {
                 button.addEventListener("click", function () {
                     self.seekBy(Number(button.getAttribute("data-player-seek") || 0));
                 });
             });
-            this.volumeInput.addEventListener("input", function () {
-                self._applyVolume();
-            });
+            function onVolumeChange() {
+                if (Number(self.volumeInput.value || 0) > 0) {
+                    self.isMuted = false;
+                }
+                self._applyVolume(true);
+            }
+
+            this.volumeInput.addEventListener("input", onVolumeChange);
+            this.volumeInput.addEventListener("change", onVolumeChange);
+            if (this.unlockButton) {
+                this.unlockButton.addEventListener("click", function () {
+                    self.unlockPending = false;
+                    self.play();
+                });
+            }
             this.audio.addEventListener("loadedmetadata", function () {
                 self.progressTotal.textContent = formatTime(self.audio.duration || 0);
             });
@@ -639,6 +670,7 @@
                 self.isPlaying = false;
                 self.toggleButton.textContent = "Play";
                 self._stopVisualizer();
+                self._hideUnlockButton();
                 self._setStatus("Không tải được file audio. Kiểm tra lại đường dẫn audio_url trong admin.");
             });
 
@@ -676,13 +708,21 @@
                     var previousMuted = self.audio.muted;
                     var previousVolume = self.audio.volume;
                     self.audio.muted = true;
-                    self.audio.volume = 0;
+                    try {
+                        self.audio.volume = 0;
+                    } catch (error) {
+                        // Some mobile browsers ignore programmatic volume changes.
+                    }
                     var playPromise = self.audio.play();
                     if (!playPromise || typeof playPromise.then !== "function") {
                         self.audio.pause();
                         self.audio.currentTime = 0;
                         self.audio.muted = previousMuted;
-                        self.audio.volume = previousVolume;
+                        try {
+                            self.audio.volume = previousVolume;
+                        } catch (error) {
+                            // Keep the restored muted state even if volume is read-only.
+                        }
                         self._applyVolume();
                         return;
                     }
@@ -691,13 +731,21 @@
                             self.audio.pause();
                             self.audio.currentTime = 0;
                             self.audio.muted = previousMuted;
-                            self.audio.volume = previousVolume;
+                            try {
+                                self.audio.volume = previousVolume;
+                            } catch (error) {
+                                // Keep the restored muted state even if volume is read-only.
+                            }
                             self._applyVolume();
                             self.unlockPending = false;
                         })
                         .catch(function () {
                             self.audio.muted = previousMuted;
-                            self.audio.volume = previousVolume;
+                            try {
+                                self.audio.volume = previousVolume;
+                            } catch (error) {
+                                // Keep the restored muted state even if volume is read-only.
+                            }
                             self._applyVolume();
                         });
                 })
@@ -719,22 +767,41 @@
                 this.audioContext = new Ctx();
                 this.analyser = this.audioContext.createAnalyser();
                 this.analyser.fftSize = 64;
+                this.gainNode = this.audioContext.createGain();
                 this.sourceNode = this.audioContext.createMediaElementSource(this.audio);
-                this.sourceNode.connect(this.analyser);
+                this.sourceNode.connect(this.gainNode);
+                this.gainNode.connect(this.analyser);
                 this.analyser.connect(this.audioContext.destination);
             } catch (error) {
                 this.audioContext = null;
                 this.analyser = null;
+                this.gainNode = null;
             }
             this._applyVolume();
             return Promise.resolve(this.audioContext);
         };
 
-        AudioTrackPlayer.prototype._applyVolume = function () {
+        AudioTrackPlayer.prototype._applyVolume = function (announce) {
             var volume = Number(this.volumeInput.value || 0) / 100;
-            this.audio.volume = this.isMuted ? 0 : volume;
+            var outputVolume = this.isMuted ? 0 : volume;
+            if (this.gainNode) {
+                this.gainNode.gain.setValueAtTime(outputVolume, this.audioContext.currentTime);
+            }
+            try {
+                this.audio.volume = outputVolume;
+            } catch (error) {
+                // iOS Safari does not reliably support programmatic volume.
+            }
             this.audio.muted = this.isMuted;
             this.muteButton.textContent = this.isMuted ? "Unmute" : "Mute";
+            this.muteButton.setAttribute("aria-pressed", this.isMuted ? "true" : "false");
+            if (announce && this.sourceUrl) {
+                if (this.isMuted || outputVolume === 0) {
+                    this._setStatus("Đã tắt âm thanh. Nhấn Unmute hoặc kéo âm lượng để bật lại.");
+                } else {
+                    this._setStatus("Âm lượng " + Math.round(volume * 100) + "%.");
+                }
+            }
         };
 
         AudioTrackPlayer.prototype._startVisualizer = function () {
@@ -802,6 +869,7 @@
             this._renderProgress();
             this.progressFill.style.width = "100%";
             this.toggleButton.textContent = "Play";
+            this._hideUnlockButton();
             this._setStatus("Bản thu gốc đã phát xong. Nhấn Play để nghe lại.");
         };
 
@@ -813,6 +881,7 @@
             this.audio.pause();
             this._stopVisualizer();
             this.toggleButton.textContent = "Play";
+            this._hideUnlockButton();
             this._setStatus("Đã tạm dừng. Bạn có thể tiếp tục bản thu từ vị trí hiện tại.");
         };
 
@@ -844,12 +913,14 @@
                     self.isPlaying = true;
                     self.unlockPending = false;
                     self.toggleButton.textContent = "Pause";
+                    self._hideUnlockButton();
                     self._setStatus("Đang phát bản thu gốc của " + payload.name + ".");
                     self._startVisualizer();
                 })
                 .catch(function () {
                     self.unlockPending = true;
                     self.toggleButton.textContent = "Play";
+                    self._showUnlockButton();
                     self._setStatus("Trình duyệt đang chặn tự phát. Nhấn Play hoặc chạm màn hình để bật nhạc.");
                 });
         };

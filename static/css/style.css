@@ -3680,6 +3680,29 @@ main.character-main>.container {
     font-size: 0.9rem;
 }
 
+.player-unlock-button {
+    align-self: flex-start;
+    border: 0;
+    border-radius: 999px;
+    background: linear-gradient(135deg, var(--vn-red), var(--vn-red-dark));
+    color: var(--vn-white);
+    padding: 0.85rem 1.35rem;
+    font: inherit;
+    font-weight: 800;
+    box-shadow: 0 16px 28px rgba(178, 34, 34, 0.22);
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
+}
+
+.player-unlock-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 34px rgba(178, 34, 34, 0.28);
+}
+
+.player-unlock-button.is-hidden {
+    display: none;
+}
+
 .player-source-link {
     align-self: flex-start;
     font-weight: 700;
@@ -3989,13 +4012,74 @@ main.character-main>.container {
     }
 
     .player-controls {
+        display: grid;
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         align-items: stretch;
+        gap: 0.65rem;
     }
 
     .player-control,
-    .player-volume {
+    .player-volume,
+    .player-unlock-button {
         width: 100%;
         justify-content: center;
+    }
+
+    .player-control {
+        min-height: 3.1rem;
+        padding: 0.65rem 0.55rem;
+        border-radius: 999px;
+        font-size: 0.98rem;
+        font-weight: 800;
+    }
+
+    .player-control.compact {
+        min-width: 0;
+        padding-inline: 0.45rem;
+    }
+
+    .player-control[data-player-seek="-10"],
+    .player-control[data-player-toggle],
+    .player-control[data-player-seek="10"] {
+        grid-column: span 2;
+    }
+
+    .player-control[data-player-mute] {
+        grid-column: span 2;
+        padding-inline: 0.45rem;
+        font-size: 0.95rem;
+    }
+
+    .player-volume {
+        grid-column: span 4;
+    }
+
+    .player-control.primary {
+        box-shadow: 0 16px 28px rgba(178, 34, 34, 0.22);
+    }
+
+    .player-volume {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr);
+        min-height: 3.1rem;
+        padding: 0.65rem 0.75rem;
+        gap: 0.55rem;
+        border-radius: 999px;
+        background: rgba(212, 168, 67, 0.13);
+        font-size: 0.98rem;
+    }
+
+    .player-volume input {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .player-unlock-button {
+        min-height: 3.35rem;
+        padding: 0.75rem 1rem;
+        border-radius: 999px;
+        font-size: 1rem;
+        font-weight: 800;
     }
 
     .character-avatar-link {

@@ -223,13 +223,14 @@
         var roleCard = root.querySelector('[data-reveal="role"]');
         var playerCard = root.querySelector('[data-reveal="player"]');
         var prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        var isLikelyMobile = window.matchMedia("(max-width: 768px), (pointer: coarse)").matches;
         var hasInteractiveIntro = Boolean(introVideo || fallbackFigure);
         var introStartPromise = null;
         var introStartResolved = false;
         var modelViewerScriptPromise = null;
         var introStateKey = "nepthanh:character:intro-complete:" + payload.slug;
-        var introAlreadyCompleted = readIntroCompleted();
+        var introAlreadyCompleted = payload.fromQr ? false : readIntroCompleted();
+        var player = null;
+        var playerRevealed = false;
 
         function readIntroCompleted() {
             try {
@@ -466,6 +467,9 @@
                 introStartButton.addEventListener("click", function onStartClick() {
                     introStartButton.removeEventListener("click", onStartClick);
                     introStartResolved = true;
+                    if (player && typeof player.primeForAutoplay === "function") {
+                        player.primeForAutoplay();
+                    }
                     hideIntroStartGate();
                     resolve(true);
                 });
@@ -480,9 +484,11 @@
                 introVideo.pause();
                 introVideo.classList.add("is-hidden");
             }
-            if (fallbackFigure && !(modelViewerElement && isLikelyMobile)) {
+            if (fallbackFigure) {
                 ensureModelViewerLoaded().catch(function () {
-                    return null;
+                    fallbackFigure.classList.add("is-hidden");
+                    fallbackFigure.classList.remove("is-visible");
+                    showPosterFigure();
                 });
                 hidePosterFigure();
                 fallbackFigure.classList.remove("is-hidden");
@@ -660,6 +666,46 @@
             return Promise.resolve(this.audio);
         };
 
+        AudioTrackPlayer.prototype.primeForAutoplay = function () {
+            var self = this;
+            if (!this.sourceUrl || this.isPlaying || this.audio.src) {
+                return;
+            }
+            this._ensureAudio()
+                .then(function () {
+                    var previousMuted = self.audio.muted;
+                    var previousVolume = self.audio.volume;
+                    self.audio.muted = true;
+                    self.audio.volume = 0;
+                    var playPromise = self.audio.play();
+                    if (!playPromise || typeof playPromise.then !== "function") {
+                        self.audio.pause();
+                        self.audio.currentTime = 0;
+                        self.audio.muted = previousMuted;
+                        self.audio.volume = previousVolume;
+                        self._applyVolume();
+                        return;
+                    }
+                    return playPromise
+                        .then(function () {
+                            self.audio.pause();
+                            self.audio.currentTime = 0;
+                            self.audio.muted = previousMuted;
+                            self.audio.volume = previousVolume;
+                            self._applyVolume();
+                            self.unlockPending = false;
+                        })
+                        .catch(function () {
+                            self.audio.muted = previousMuted;
+                            self.audio.volume = previousVolume;
+                            self._applyVolume();
+                        });
+                })
+                .catch(function () {
+                    return null;
+                });
+        };
+
         AudioTrackPlayer.prototype._ensureContext = function () {
             if (this.audioContext) {
                 return Promise.resolve(this.audioContext);
@@ -816,7 +862,20 @@
         showPosterFigure();
         cleanQrUrl();
 
-        var player = new AudioTrackPlayer(root.querySelector("[data-player]"), audioTrackMeta(payload.name), payload.audioUrl);
+        player = new AudioTrackPlayer(root.querySelector("[data-player]"), audioTrackMeta(payload.name), payload.audioUrl);
+
+        function revealPlayer(shouldAutoplay) {
+            if (!playerRevealed) {
+                playerRevealed = true;
+                playerCard.hidden = false;
+                window.requestAnimationFrame(function () {
+                    playerCard.classList.add("is-visible");
+                });
+            }
+            if (shouldAutoplay && !prefersReducedMotion) {
+                player.autoPlay();
+            }
+        }
 
         function renderCompletedExperience() {
             viewer.classList.add("is-active");
@@ -828,10 +887,7 @@
             storyEl.textContent = payload.story;
             infoGrid.classList.add("is-visible");
             roleCard.classList.add("is-visible");
-            playerCard.hidden = false;
-            window.requestAnimationFrame(function () {
-                playerCard.classList.add("is-visible");
-            });
+            revealPlayer(false);
         }
 
         async function runSequence() {
@@ -851,6 +907,9 @@
                     enablePointerTracking();
                 });
             }
+            introPlayback.then(function () {
+                revealPlayer(true);
+            });
 
             await wait(prefersReducedMotion ? 0 : 220);
             viewer.classList.add("is-greeted");
@@ -868,13 +927,7 @@
             await wait(prefersReducedMotion ? 0 : 220);
             await introPlayback;
 
-            playerCard.hidden = false;
-            window.requestAnimationFrame(function () {
-                playerCard.classList.add("is-visible");
-            });
-            if (!isLikelyMobile) {
-                player.autoPlay();
-            }
+            revealPlayer(false);
         }
 
         runSequence();

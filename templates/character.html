@@ -133,7 +133,7 @@
                     {% if character.audio_source_url %}
                     <a class="player-source-link" href="{{ character.audio_source_url }}" target="_blank"
                         rel="noopener">
-                        Xem nguồn chính trên YouTube
+                        Xem các nguồn chính thống tại đây!!
                     </a>
                     {% endif %}
                 </div>
@@ -194,7 +194,8 @@
         "audioUrl": asset_url(character.audio_url) if character.audio_url else "",
         "audioSourceUrl": character.audio_source_url or "",
         "introVideoUrl": character.intro_video or "",
-        "finalVisualType": character.final_visual_type
+        "finalVisualType": character.final_visual_type,
+        "fromQr": from_qr
     } | tojson }}
 </script>
 
@@ -222,10 +223,46 @@
         var roleCard = root.querySelector('[data-reveal="role"]');
         var playerCard = root.querySelector('[data-reveal="player"]');
         var prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        var isLikelyMobile = window.matchMedia("(max-width: 768px), (pointer: coarse)").matches;
         var hasInteractiveIntro = Boolean(introVideo || fallbackFigure);
         var introStartPromise = null;
         var introStartResolved = false;
         var modelViewerScriptPromise = null;
+        var introStateKey = "nepthanh:character:intro-complete:" + payload.slug;
+        var introAlreadyCompleted = readIntroCompleted();
+
+        function readIntroCompleted() {
+            try {
+                return window.sessionStorage.getItem(introStateKey) === "1";
+            } catch (error) {
+                return false;
+            }
+        }
+
+        function markIntroCompleted() {
+            try {
+                window.sessionStorage.setItem(introStateKey, "1");
+            } catch (error) {
+                return;
+            }
+        }
+
+        function cleanQrUrl() {
+            if (!payload.fromQr || !window.history || !window.history.replaceState) {
+                return;
+            }
+            try {
+                var url = new URL(window.location.href);
+                if (url.searchParams.get("from_qr") !== "1") {
+                    return;
+                }
+                url.searchParams.delete("from_qr");
+                url.searchParams.delete("token");
+                window.history.replaceState({}, document.title, url.pathname + url.search + url.hash);
+            } catch (error) {
+                return;
+            }
+        }
 
         function audioTrackMeta(name) {
             return {
@@ -233,7 +270,7 @@
                 description: "Xin mời bạn thưởng thức bản audio" 
             };
         }
-name
+
         function wait(ms) {
             return new Promise(function (resolve) {
                 window.setTimeout(resolve, ms);
@@ -443,7 +480,7 @@ name
                 introVideo.pause();
                 introVideo.classList.add("is-hidden");
             }
-            if (fallbackFigure) {
+            if (fallbackFigure && !(modelViewerElement && isLikelyMobile)) {
                 ensureModelViewerLoaded().catch(function () {
                     return null;
                 });
@@ -491,6 +528,7 @@ name
                             settled = true;
                             introVideo.removeEventListener("ended", onEnded);
                             introVideo.removeEventListener("error", onError);
+                            markIntroCompleted();
                             revealFallbackFigure();
                             resolve();
                         }
@@ -776,10 +814,32 @@ name
 
         createSparkles();
         showPosterFigure();
+        cleanQrUrl();
 
         var player = new AudioTrackPlayer(root.querySelector("[data-player]"), audioTrackMeta(payload.name), payload.audioUrl);
 
+        function renderCompletedExperience() {
+            viewer.classList.add("is-active");
+            viewer.classList.add("is-greeted");
+            revealFallbackFigure();
+            enablePointerTracking();
+            nameEl.textContent = payload.name;
+            nicknameEl.textContent = payload.nickname;
+            storyEl.textContent = payload.story;
+            infoGrid.classList.add("is-visible");
+            roleCard.classList.add("is-visible");
+            playerCard.hidden = false;
+            window.requestAnimationFrame(function () {
+                playerCard.classList.add("is-visible");
+            });
+        }
+
         async function runSequence() {
+            if (introAlreadyCompleted) {
+                renderCompletedExperience();
+                return;
+            }
+
             viewer.classList.add("is-active");
             var startWithSound = await waitForIntroStart();
             var introPlayback = playIntroSequence(!startWithSound);
@@ -812,11 +872,12 @@ name
             window.requestAnimationFrame(function () {
                 playerCard.classList.add("is-visible");
             });
-            player.autoPlay();
+            if (!isLikelyMobile) {
+                player.autoPlay();
+            }
         }
 
         runSequence();
     })();
 </script>
 {% endblock %}
-

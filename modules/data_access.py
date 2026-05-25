@@ -224,7 +224,7 @@ def _character_model_for_slug(slug):
 def _character_image_for_slug(slug):
     return (
         _find_static_asset(("images/characters", "images"), _slug_stems(slug))
-        or "images/logo/logo3.png"
+        or "images/logo/logo.png"
     )
 
 
@@ -249,7 +249,7 @@ def _product_image_for(row, image_url):
 
     return (
         _find_static_asset(("images/shirt", "images/products", "uploads/products", "images"), stems)
-        or "images/logo/logo3.png"
+        or "images/logo/logo.png"
     )
 
 

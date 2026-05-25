@@ -6,6 +6,7 @@ from datetime import datetime
 
 from flask import Flask, render_template, request, url_for
 from dotenv import load_dotenv
+from werkzeug.middleware.proxy_fix import ProxyFix
 load_dotenv(override=True)
 
 from modules.auth import _get_current_user, _is_admin_user, _google_enabled
@@ -21,6 +22,8 @@ from modules.utils import _is_external_url, _normalize_static_path
 
 app = Flask(__name__)
 app.secret_key = SECRET_KEY
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
+app.config["PREFERRED_URL_SCHEME"] = "https"
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 86400
 
 # Ensure a usable schema exists for both local runs and Vercel cold starts.

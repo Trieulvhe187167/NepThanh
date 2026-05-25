@@ -106,6 +106,6 @@ Phí ship là **30.000 VND / 1 đơn** cho mọi đơn hàng.
 
 ### Kênh hỗ trợ
 - **Email**: nepthanh6886@gmail.com
-- **Facebook**: facebook.com/nepthanh
+- **Facebook**: https://www.facebook.com/people/H%C6%B0%E1%BB%9Bng-d%C6%B0%C6%A1ng-V%E1%BA%A1n-L%E1%BB%A3i/61579518651459/
 - **Instagram**: instagram.com/nepthanh
 - Thời gian phản hồi: trong vòng **2 giờ** (giờ hành chính).

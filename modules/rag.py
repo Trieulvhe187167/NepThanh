@@ -639,7 +639,7 @@ _BRAND_REPLY = (
     "như Xẩm, Chèo, Quan Họ, Then, Khèn…\n\n"
     "🎭 Mỗi nhân vật trên áo đại diện cho một loại hình nghệ thuật. "
     "Quét QR trên mác áo để khám phá câu chuyện, podcast và nhạc truyền thống!\n\n"
-    "📬 Liên hệ: **nepthanh6886@gmail.com** | Facebook & Instagram: **@nepthanh**\n"
+    "📬 Liên hệ: **nepthanh6886@gmail.com** | Facebook: **https://www.facebook.com/people/H%C6%B0%E1%BB%9Bng-d%C6%B0%C6%A1ng-V%E1%BA%A1n-L%E1%BB%A3i/61579518651459/**\n"
     "⏰ Hỗ trợ: 8:00 – 17:00 các ngày trong tuần."
 )
 
@@ -709,7 +709,7 @@ def rag_answer(query, top_k=4):
                 "Mình chưa tìm thấy thông tin liên quan đến câu hỏi của bạn trong hệ thống. "
                 "Bạn có thể hỏi cụ thể hơn, hoặc liên hệ shop qua:\n"
                 "📧 **nepthanh6886@gmail.com**\n"
-                "📘 **Facebook/Instagram: @nepthanh**\n"
+                "📘 FanpageFB : **https://www.facebook.com/people/H%C6%B0%E1%BB%9Bng-d%C6%B0%C6%A1ng-V%E1%BA%A1n-L%E1%BB%A3i/61579518651459/** \n"
                 "để được hỗ trợ trực tiếp nhé! 🙏"
             ),
             "intent": "other",

@@ -15,7 +15,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ request.url }}" />
     <!-- CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260525-4" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260527-2" />
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" />
 </head>
 
@@ -137,6 +137,16 @@
                         <li><a href="{{ url_for('product_list') }}">Sản phẩm</a></li>
                         <li><a href="{{ url_for('about') }}">Về chúng tôi</a></li>
                         <li><a href="{{ url_for('contact') }}">Liên hệ</a></li>
+                        <li><a href="{{ url_for('blog_list') }}">Blog</a></li>
+                    </ul>
+                </div>
+                                <div class="footer-links">
+                    <h4>Chính sách</h4>
+                    <ul>
+                        <li><a href="/page/chinh-sach-doi-tra">Chính sách đổi trả</a></li>
+                        <li><a href="/page/chinh-sach-bao-mat">Chính sách bảo mật</a></li>
+                        <li><a href="/page/dieu-khoan-su-dung">Điều khoản sử dụng</a></li>
+                        <li><a href="{{ url_for('order_tracking') }}">Tra cứu đơn hàng</a></li>
                     </ul>
                 </div>
                 <div class="footer-contact">
@@ -150,7 +160,13 @@
             </div>
             <div class="footer-bottom">
                 <p>&copy; {{ current_year }} {{ site_name }}. Tất cả quyền được bảo lưu.</p>
-                <p><a href="{{ url_for('sitemap') }}">Sitemap</a></p>
+                <p>
+                    <a href="/page/chinh-sach-doi-tra">Chính sách đổi trả</a>
+                    &nbsp;·&nbsp;
+                    <a href="/page/chinh-sach-bao-mat">Bảo mật</a>
+                    &nbsp;·&nbsp;
+                    <a href="{{ url_for('sitemap') }}">Sitemap</a>
+                </p>
             </div>
         </div>
     </footer>
@@ -201,8 +217,10 @@
                         </p>
                     </div>
                     <div class="auth-branding-side">
-                        <img src="{{ url_for('static', filename='images/logo/logo.png') }}?v=20260524-3" alt="Nếp Thanh Logo"
-                            class="auth-logo" loading="lazy" decoding="async">
+                        <a href="{{ url_for('home') }}" aria-label="Về trang chủ" style="display:flex;justify-content:center;align-self:center;width:100%;">
+                            <img src="{{ url_for('static', filename='images/logo/logo.png') }}?v=20260524-3" alt="Nếp Thanh Logo"
+                                class="auth-logo" loading="lazy" decoding="async">
+                        </a>
                         <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
                     </div>
                 </div>
@@ -249,8 +267,10 @@
                         </p>
                     </div>
                     <div class="auth-branding-side">
-                        <img src="{{ url_for('static', filename='images/logo/logo.png') }}?v=20260524-3" alt="Nếp Thanh Logo"
-                            class="auth-logo" loading="lazy" decoding="async">
+                        <a href="{{ url_for('home') }}" aria-label="Về trang chủ" style="display:flex;justify-content:center;align-self:center;width:100%;">
+                            <img src="{{ url_for('static', filename='images/logo/logo.png') }}?v=20260524-3" alt="Nếp Thanh Logo"
+                                class="auth-logo" loading="lazy" decoding="async">
+                        </a>
                         <div class="auth-branding-text">Nếp Thanh – Dòng chảy thanh âm Việt</div>
                     </div>
                 </div>

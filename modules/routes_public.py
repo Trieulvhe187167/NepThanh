@@ -92,6 +92,11 @@ def register_public_routes(app):
         ]
         if len(featured_characters) < len(featured_character_slugs):
             featured_characters = characters[:3]
+        conn = _get_db()
+        banners = conn.execute(
+            "SELECT * FROM banners WHERE is_active = 1 AND position = 'homepage' ORDER BY sort_order, created_at"
+        ).fetchall()
+        conn.close()
         return render_template(
             "home.html",
             title="Trang chủ – Mặc di sản, sống hiện đại",
@@ -102,6 +107,7 @@ def register_public_routes(app):
             ),
             featured_products=featured_products,
             featured_characters=featured_characters,
+            banners=banners,
         )
 
     @app.route("/products")

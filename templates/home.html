@@ -52,6 +52,41 @@
 {% endblock %}
 
 {% block sections %}
+{% if banners %}
+<section class="banner-slider-section">
+    <div class="banner-slider" id="bannerSlider">
+        <div class="banner-track" id="bannerTrack">
+            {% for banner in banners %}
+            <div class="banner-slide">
+                {% if banner.link_url %}
+                <a href="{{ banner.link_url }}" class="banner-slide-link">
+                {% endif %}
+                    <img src="{{ asset_url(banner.image_url) }}" alt="{{ banner.title or 'Banner' }}"
+                        class="banner-slide-img" loading="{% if loop.first %}eager{% else %}lazy{% endif %}" decoding="async">
+                    {% if banner.title %}
+                    <div class="banner-slide-caption">
+                        <span>{{ banner.title }}</span>
+                    </div>
+                    {% endif %}
+                {% if banner.link_url %}
+                </a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% if banners|length > 1 %}
+        <button class="banner-btn banner-prev" id="bannerPrev" aria-label="Trước">&#8249;</button>
+        <button class="banner-btn banner-next" id="bannerNext" aria-label="Tiếp">&#8250;</button>
+        <div class="banner-dots" id="bannerDots">
+            {% for banner in banners %}
+            <button class="banner-dot {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}" aria-label="Slide {{ loop.index }}"></button>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</section>
+{% endif %}
+
 <section class="values-section">
     <div class="container">
         <div class="section-heading">
@@ -93,4 +128,48 @@
         </div>
     </div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    var track = document.getElementById('bannerTrack');
+    var dots = document.querySelectorAll('.banner-dot');
+    var prev = document.getElementById('bannerPrev');
+    var next = document.getElementById('bannerNext');
+    if (!track) return;
+    var total = track.children.length;
+    if (total <= 1) return;
+    var current = 0;
+    var timer;
+
+    function goTo(idx) {
+        current = (idx + total) % total;
+        track.style.transform = 'translateX(-' + (current * 100) + '%)';
+        dots.forEach(function (d, i) {
+            d.classList.toggle('active', i === current);
+        });
+    }
+
+    function startAuto() {
+        clearInterval(timer);
+        timer = setInterval(function () { goTo(current + 1); }, 5000);
+    }
+
+    if (prev) prev.addEventListener('click', function () { goTo(current - 1); startAuto(); });
+    if (next) next.addEventListener('click', function () { goTo(current + 1); startAuto(); });
+    dots.forEach(function (d) {
+        d.addEventListener('click', function () { goTo(+d.dataset.index); startAuto(); });
+    });
+
+    var startX = 0;
+    track.addEventListener('touchstart', function (e) { startX = e.touches[0].clientX; }, { passive: true });
+    track.addEventListener('touchend', function (e) {
+        var dx = e.changedTouches[0].clientX - startX;
+        if (Math.abs(dx) > 40) { goTo(dx < 0 ? current + 1 : current - 1); startAuto(); }
+    }, { passive: true });
+
+    startAuto();
+})();
+</script>
 {% endblock %}

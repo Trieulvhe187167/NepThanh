@@ -15,7 +15,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="{{ request.url }}" />
     <!-- CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260527-2" />
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}?v=20260529-1" />
     <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}?v=20260529-1" sizes="any" />
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}?v=20260529-1" />
 </head>
@@ -516,6 +516,7 @@
         })();
     </script>
     {% endif %}
+    {% block scripts %}{% endblock %}
 </body>
 
 </html>

@@ -388,7 +388,7 @@ def load_products():
             """
         ).fetchall()
         image_rows = conn.execute(
-            "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
+            "SELECT product_id, url FROM product_images ORDER BY is_primary DESC, sort_order, id"
         ).fetchall()
         promotion_map = get_product_promotion_map(
             conn, [row["id"] for row in products]
@@ -418,7 +418,7 @@ def load_all_products():
             """
         ).fetchall()
         image_rows = conn.execute(
-            "SELECT product_id, url FROM product_images ORDER BY sort_order, id"
+            "SELECT product_id, url FROM product_images ORDER BY is_primary DESC, sort_order, id"
         ).fetchall()
         promotion_map = get_product_promotion_map(
             conn, [row["id"] for row in products]

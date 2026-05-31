@@ -11,6 +11,7 @@ from modules.promotions import (
 from modules.utils import (
     _find_static_asset,
     _normalize_static_path,
+    _normalize_product_color,
     _parse_int,
     _static_path_exists,
 )
@@ -625,7 +626,12 @@ def _load_variant_rows(conn, variant_ids):
     mapped = {}
     for row in variant_rows:
         item = dict(row)
-        item["image"] = image_map.get(row["product_id"])
+        product_images = image_map.get(row["product_id"], {})
+        color_images = product_images.get("colors", {})
+        item["image"] = (
+            color_images.get(_normalize_product_color(row["color"]))
+            or product_images.get("primary")
+        )
         mapped[row["variant_id"]] = item
     return mapped
 
@@ -636,18 +642,29 @@ def _load_product_image_map(conn, product_ids):
     placeholders = ",".join("?" for _ in product_ids)
     rows = conn.execute(
         f"""
-        SELECT product_id, url
+        SELECT product_id, url, color, is_primary
         FROM product_images
         WHERE product_id IN ({placeholders})
-        ORDER BY sort_order, id
+        ORDER BY is_primary DESC, sort_order, id
         """,
         tuple(product_ids),
     ).fetchall()
     image_map = {}
     for row in rows:
         product_id = row["product_id"]
-        if product_id not in image_map and row["url"]:
-            image_map[product_id] = row["url"]
+        if not row["url"]:
+            continue
+        product_images = image_map.setdefault(
+            product_id,
+            {"primary": None, "colors": {}},
+        )
+        color = _normalize_product_color(row["color"])
+        if color and color not in product_images["colors"]:
+            product_images["colors"][color] = row["url"]
+        if row["is_primary"] and not product_images["primary"]:
+            product_images["primary"] = row["url"]
+        if not product_images["primary"]:
+            product_images["primary"] = row["url"]
     return image_map
 
 

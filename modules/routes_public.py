@@ -69,7 +69,9 @@ from modules.shipping import (
 from modules.utils import (
     _background_from_referrer,
     _hash_ip,
+    _normalize_product_color,
     _parse_int,
+    _product_color_details,
     _safe_background_url,
     _safe_next_url,
 )
@@ -185,6 +187,22 @@ def register_public_routes(app):
             """,
             (product["id"],),
         ).fetchall()
+        product_images = conn.execute(
+            """
+            SELECT id, url, alt_text, sort_order, color, is_primary
+            FROM product_images
+            WHERE product_id = ?
+            ORDER BY is_primary DESC, sort_order, id
+            """,
+            (product["id"],),
+        ).fetchall()
+        variant_colors = []
+        seen_colors = set()
+        for variant in variants:
+            color = _normalize_product_color(variant["color"])
+            if color and color not in seen_colors:
+                variant_colors.append(_product_color_details(variant["color"]))
+                seen_colors.add(color)
         variant_ids = [variant["id"] for variant in variants]
         qr_batch_ready = False
         qr_demo_url = None
@@ -216,6 +234,8 @@ def register_public_routes(app):
             product=product,
             character=character,
             variants=variants,
+            variant_colors=variant_colors,
+            product_images=product_images,
             qr_batch_ready=qr_batch_ready,
             qr_demo_url=qr_demo_url,
         )

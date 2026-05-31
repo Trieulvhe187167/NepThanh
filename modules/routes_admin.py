@@ -44,7 +44,9 @@ from modules.qr_service import (
 from modules.utils import (
     _build_order_number,
     _generate_qr_png,
+    _is_allowed_image_filename,
     _normalize_static_path,
+    _normalize_product_color,
     _parse_int,
     _save_upload,
     _slugify,
@@ -98,6 +100,46 @@ def _get_product_relations(conn, product_id):
         ).fetchall()
     ]
     return category_ids, tag_ids
+
+
+def _ensure_primary_product_image(conn, product_id):
+    primary = conn.execute(
+        "SELECT id FROM product_images WHERE product_id = ? AND is_primary = 1 LIMIT 1",
+        (product_id,),
+    ).fetchone()
+    if primary:
+        return
+    first_image = conn.execute(
+        "SELECT id FROM product_images WHERE product_id = ? ORDER BY sort_order, id LIMIT 1",
+        (product_id,),
+    ).fetchone()
+    if first_image:
+        conn.execute(
+            "UPDATE product_images SET is_primary = 1 WHERE id = ?",
+            (first_image["id"],),
+        )
+
+
+def _set_primary_product_image(conn, product_id, image_id):
+    conn.execute(
+        "UPDATE product_images SET is_primary = 0 WHERE product_id = ?",
+        (product_id,),
+    )
+    conn.execute(
+        "UPDATE product_images SET is_primary = 1 WHERE id = ? AND product_id = ?",
+        (image_id, product_id),
+    )
+
+
+def _delete_local_product_upload(image_url):
+    normalized = _normalize_static_path(image_url)
+    prefix = "uploads/products/"
+    if not normalized or not normalized.startswith(prefix):
+        return
+    uploads_dir = os.path.abspath(os.path.join(BASE_DIR, "static", "uploads", "products"))
+    target = os.path.abspath(os.path.join(BASE_DIR, "static", *normalized.split("/")))
+    if target.startswith(uploads_dir + os.sep) and os.path.isfile(target):
+        os.remove(target)
 
 
 def _save_product_relations(conn, product_id, category_ids, tag_ids):
@@ -543,20 +585,37 @@ def register_admin_routes(app):
     @admin_required("products")
     def admin_product_image_new(product_id):
         conn = _get_db()
+        product = conn.execute(
+            "SELECT id FROM products WHERE id = ?",
+            (product_id,),
+        ).fetchone()
+        if product is None:
+            conn.close()
+            abort(404)
         image_url = _normalize_static_path(request.form.get("image_url", ""))
         alt_text = request.form.get("alt_text", "").strip()
+        color = _normalize_product_color(request.form.get("color", ""))
         sort_order = _parse_int(request.form.get("sort_order"), 0)
+        is_primary = 1 if request.form.get("is_primary") else 0
         file_storage = request.files.get("image_file")
-        if file_storage and file_storage.filename:
+        if file_storage and _is_allowed_image_filename(file_storage.filename):
             saved = _save_upload(file_storage, "products")
             if saved:
                 image_url = saved
         if image_url:
-            conn.execute(
-                "INSERT INTO product_images (product_id, url, alt_text, sort_order) VALUES (?, ?, ?, ?)",
-                (product_id, image_url, alt_text, sort_order),
+            cur = conn.execute(
+                """
+                INSERT INTO product_images (product_id, url, alt_text, sort_order, color, is_primary)
+                VALUES (?, ?, ?, ?, ?, 0)
+                """,
+                (product_id, image_url, alt_text, sort_order, color or None),
             )
+            if is_primary:
+                _set_primary_product_image(conn, product_id, cur.lastrowid)
+            else:
+                _ensure_primary_product_image(conn, product_id)
             conn.commit()
+            invalidate_content_cache()
         conn.close()
         return redirect(url_for("admin_product_edit", product_id=product_id))
 
@@ -565,19 +624,36 @@ def register_admin_routes(app):
     def admin_product_image_edit(image_id):
         conn = _get_db()
         image = conn.execute(
-            "SELECT product_id FROM product_images WHERE id = ?", (image_id,)
+            "SELECT product_id, url FROM product_images WHERE id = ?", (image_id,)
         ).fetchone()
         if image is None:
             conn.close()
             abort(404)
         url = _normalize_static_path(request.form.get("image_url", ""))
         alt_text = request.form.get("alt_text", "").strip()
+        color = _normalize_product_color(request.form.get("color", ""))
         sort_order = _parse_int(request.form.get("sort_order"), 0)
+        is_primary = 1 if request.form.get("is_primary") else 0
+        file_storage = request.files.get("image_file")
+        if file_storage and _is_allowed_image_filename(file_storage.filename):
+            saved = _save_upload(file_storage, "products")
+            if saved:
+                _delete_local_product_upload(image["url"])
+                url = saved
         conn.execute(
-            "UPDATE product_images SET url = ?, alt_text = ?, sort_order = ? WHERE id = ?",
-            (url, alt_text, sort_order, image_id),
+            "UPDATE product_images SET url = ?, alt_text = ?, sort_order = ?, color = ? WHERE id = ?",
+            (url, alt_text, sort_order, color or None, image_id),
         )
+        if is_primary:
+            _set_primary_product_image(conn, image["product_id"], image_id)
+        else:
+            conn.execute(
+                "UPDATE product_images SET is_primary = 0 WHERE id = ?",
+                (image_id,),
+            )
+            _ensure_primary_product_image(conn, image["product_id"])
         conn.commit()
+        invalidate_content_cache()
         conn.close()
         return redirect(url_for("admin_product_edit", product_id=image["product_id"]))
 
@@ -586,15 +662,18 @@ def register_admin_routes(app):
     def admin_product_image_delete(image_id):
         conn = _get_db()
         image = conn.execute(
-            "SELECT product_id FROM product_images WHERE id = ?",
+            "SELECT product_id, url FROM product_images WHERE id = ?",
             (image_id,),
         ).fetchone()
         if image is None:
             conn.close()
             abort(404)
         conn.execute("DELETE FROM product_images WHERE id = ?", (image_id,))
+        _ensure_primary_product_image(conn, image["product_id"])
         conn.commit()
+        invalidate_content_cache()
         conn.close()
+        _delete_local_product_upload(image["url"])
         return redirect(url_for("admin_product_edit", product_id=image["product_id"]))
 
     @app.route("/admin/categories", methods=["GET", "POST"])

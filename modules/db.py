@@ -33,7 +33,7 @@ _TURSO_SYNC_INTERVAL_SECONDS = max(
     int((os.environ.get("TURSO_SYNC_INTERVAL_SECONDS") or "15").strip() or "15"),
 )
 _LAST_TURSO_SYNC_AT = 0.0
-_SCHEMA_BOOTSTRAP_VERSION = "2026-05-21-character-audio-source"
+_SCHEMA_BOOTSTRAP_VERSION = "2026-05-31-product-image-colors"
 
 
 class ManagedConnection:
@@ -261,6 +261,8 @@ def _create_base_tables(conn):
             url TEXT NOT NULL,
             alt_text TEXT,
             sort_order INTEGER NOT NULL DEFAULT 0,
+            color TEXT,
+            is_primary INTEGER NOT NULL DEFAULT 0,
             FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
         )
         """
@@ -628,6 +630,8 @@ def init_db():
     _ensure_column(conn, "products", "is_featured", "INTEGER DEFAULT 0")
     _ensure_column(conn, "products", "collection", "TEXT")
     _ensure_column(conn, "product_variants", "low_stock_threshold", "INTEGER DEFAULT 5")
+    _ensure_column(conn, "product_images", "color", "TEXT")
+    _ensure_column(conn, "product_images", "is_primary", "INTEGER NOT NULL DEFAULT 0")
     _ensure_column(conn, "characters", "nickname", "TEXT")
     _ensure_column(conn, "characters", "origin", "TEXT")
     _ensure_column(conn, "characters", "personality", "TEXT")
@@ -674,6 +678,29 @@ def init_db():
     )
     conn.execute(
         "CREATE INDEX IF NOT EXISTS idx_qr_scans_tag_ip_time ON qr_scans(qr_tag_id, ip_hash, scanned_at)"
+    )
+    conn.execute(
+        """
+        UPDATE product_images
+        SET is_primary = 1
+        WHERE id IN (
+            SELECT MIN(candidate.id)
+            FROM product_images candidate
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM product_images primary_image
+                WHERE primary_image.product_id = candidate.product_id
+                  AND primary_image.is_primary = 1
+            )
+            GROUP BY candidate.product_id
+        )
+        """
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_product_images_one_primary ON product_images(product_id) WHERE is_primary = 1"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_product_images_color_order ON product_images(product_id, color, sort_order, id)"
     )
 
     _set_setting(conn, "_schema_bootstrap_version", _SCHEMA_BOOTSTRAP_VERSION)

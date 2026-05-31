@@ -11,6 +11,17 @@ from werkzeug.utils import secure_filename
 from modules.config import BASE_DIR, UPLOAD_DIR
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+PRODUCT_COLOR_DETAILS = {
+    "black": {"label": "Đen", "css": "#111111"},
+    "white": {"label": "Trắng", "css": "#ffffff"},
+    "red": {"label": "Đỏ", "css": "#b22222"},
+    "blue": {"label": "Xanh dương", "css": "#2563eb"},
+    "green": {"label": "Xanh lá", "css": "#15803d"},
+    "yellow": {"label": "Vàng", "css": "#eab308"},
+    "pink": {"label": "Hồng", "css": "#ec4899"},
+    "gray": {"label": "Xám", "css": "#9ca3af"},
+    "beige": {"label": "Be", "css": "#d6c2a1"},
+}
 
 
 def _is_external_url(value):
@@ -86,6 +97,42 @@ def _slugify(value):
     ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
     cleaned = re.sub(r"[^a-zA-Z0-9]+", "-", ascii_value).strip("-").lower()
     return cleaned or secrets.token_hex(4)
+
+
+def _normalize_product_color(value):
+    raw = (value or "").strip()
+    if not raw:
+        return ""
+    normalized = unicodedata.normalize("NFKD", raw).replace("Đ", "D").replace("đ", "d")
+    ascii_value = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    key = re.sub(r"[^a-z0-9]+", "-", ascii_value).strip("-")
+    aliases = {
+        "den": "black",
+        "trang": "white",
+        "do": "red",
+        "xanh-duong": "blue",
+        "xanh-la": "green",
+        "vang": "yellow",
+        "hong": "pink",
+        "xam": "gray",
+    }
+    return aliases.get(key, key)
+
+
+def _product_color_details(value):
+    key = _normalize_product_color(value)
+    details = PRODUCT_COLOR_DETAILS.get(key)
+    if details:
+        return {"key": key, **details}
+    return {
+        "key": key,
+        "label": (value or key or "Không phân màu").strip(),
+        "css": "#d1d5db",
+    }
+
+
+def _is_allowed_image_filename(filename):
+    return bool(filename) and os.path.splitext(filename)[1].lower() in IMAGE_EXTENSIONS
 
 
 def _parse_int(value, default=0):

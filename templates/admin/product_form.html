@@ -161,14 +161,19 @@
     </div>
     <div class="admin-card">
         <h3>Ảnh sản phẩm</h3>
+        <p class="muted">Ảnh upload được lưu trong <code>static/uploads/products</code>. Chọn một ảnh đại diện để hiển thị ở danh sách sản phẩm.</p>
         <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_product_image_new', product_id=product.id) }}" class="form-grid">
             <div class="form-group">
                 <label>Ảnh URL</label>
-                <input name="image_url" placeholder="images/shirt/anh_hai.jpg" />
+                <input name="image_url" placeholder="images/shirt/chang_khen_white.jpg" />
             </div>
             <div class="form-group">
                 <label>Hoặc upload</label>
-                <input type="file" name="image_file" />
+                <input type="file" name="image_file" accept=".jpg,.jpeg,.png,.webp,.gif" />
+            </div>
+            <div class="form-group">
+                <label>Màu áo</label>
+                <input name="color" placeholder="white hoặc Trắng" />
             </div>
             <div class="form-group">
                 <label>Alt text</label>
@@ -178,6 +183,9 @@
                 <label>Thứ tự</label>
                 <input type="number" name="sort_order" value="0" />
             </div>
+            <div class="form-group">
+                <label><input type="checkbox" name="is_primary" /> Dùng làm ảnh đại diện</label>
+            </div>
             <div class="form-group" style="align-self: end;">
                 <button class="btn btn-primary" type="submit">Thêm ảnh</button>
             </div>
@@ -185,19 +193,28 @@
         <table class="admin-table" style="margin-top: 1rem;">
             <thead>
                 <tr>
+                    <th>Preview</th>
                     <th>URL</th>
+                    <th>Màu</th>
                     <th>Alt</th>
                     <th>Order</th>
+                    <th>Đại diện</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
                 {% for image in images %}
                 <tr>
-                    <form method="post" action="{{ url_for('admin_product_image_edit', image_id=image.id) }}">
-                        <td><input name="image_url" value="{{ image.url }}" placeholder="images/shirt/anh_hai.jpg" /></td>
+                    <form method="post" enctype="multipart/form-data" action="{{ url_for('admin_product_image_edit', image_id=image.id) }}">
+                        <td><img src="{{ asset_url(image.url) }}" alt="{{ image.alt_text or product.name }}" style="width:72px;height:72px;object-fit:contain;border-radius:10px;background:#f7f3ee;" /></td>
+                        <td>
+                            <input name="image_url" value="{{ image.url }}" placeholder="images/shirt/chang_khen_white.jpg" />
+                            <input type="file" name="image_file" accept=".jpg,.jpeg,.png,.webp,.gif" style="margin-top:0.35rem;" />
+                        </td>
+                        <td><input name="color" value="{{ image.color or '' }}" placeholder="white" style="width:100px;" /></td>
                         <td><input name="alt_text" value="{{ image.alt_text or '' }}" /></td>
                         <td><input type="number" name="sort_order" value="{{ image.sort_order }}" /></td>
+                        <td><label><input type="radio" name="is_primary" value="1" {% if image.is_primary %}checked{% endif %} /> Đại diện</label></td>
                         <td>
                             <button class="btn btn-secondary" type="submit">Lưu</button>
                             <button class="btn btn-danger" type="submit" formaction="{{ url_for('admin_product_image_delete', image_id=image.id) }}" onclick="return confirm('Xóa ảnh?')">Xóa</button>
@@ -205,7 +222,7 @@
                     </form>
                 </tr>
                 {% else %}
-                <tr><td colspan="4" class="muted">Chưa có ảnh.</td></tr>
+                <tr><td colspan="7" class="muted">Chưa có ảnh.</td></tr>
                 {% endfor %}
             </tbody>
         </table>

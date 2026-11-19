@@ -2,6 +2,40 @@
 
 Website thương mại điện tử cho thương hiệu áo phông di sản Việt Nam **Nếp Thanh - Dòng chảy thanh âm Việt**. Dự án được xây bằng Flask, có trang bán hàng public, giỏ hàng, checkout, quản trị sản phẩm/đơn hàng/kho, mã giảm giá, flash sale, QR nhân vật, chatbot CSKH, email, thanh toán COD/chuyển khoản và tính phí vận chuyển qua đơn vị giao hàng.
 
+## Ảnh chụp màn hình
+
+| Trang chủ | Chi tiết sản phẩm |
+| --- | --- |
+| ![Trang chủ](docs/images/home.jpg) | ![Chi tiết sản phẩm](docs/images/product-detail.jpg) |
+
+| Danh sách sản phẩm | Trợ lý AI chăm sóc khách hàng |
+| --- | --- |
+| ![Danh sách sản phẩm](docs/images/products.jpg) | ![Chatbot](docs/images/assistant.png) |
+
+<p align="center"><img src="docs/images/mobile-home.jpg" alt="Giao diện mobile" width="300" /></p>
+
+## Trợ lý AI chăm sóc khách hàng
+
+Chatbot tại `/assistant` (và bong bóng chat trên mọi trang) xử lý câu hỏi theo 3 tầng để vừa nhanh vừa chính xác:
+
+1. **Router theo ý định (rule-based):** nhận diện hỏi giá, tồn kho, size, chính sách, đặt hàng… và truy vấn trực tiếp database, nên giá và tồn kho luôn đúng theo dữ liệu thật.
+2. **RAG cục bộ (ChromaDB + sentence-transformers):** với câu hỏi mở, truy xuất FAQ, thông tin sản phẩm và nhân vật di sản để trả lời có căn cứ.
+3. **Google Gemini (tùy chọn):** diễn đạt câu trả lời tự nhiên hơn khi có `GEMINI_API_KEY`; nếu không có thì bot vẫn chạy bằng 2 tầng trên.
+
+Bot còn có luồng **đặt hàng qua chat** (state machine hỏi lần lượt sản phẩm, màu, size, tên, số điện thoại, địa chỉ rồi xác nhận đơn), tính phí ship theo địa chỉ, và lưu lịch sử hội thoại vào SQLite để quản trị viên xem lại.
+
+## Chạy thử nhanh
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+# tạo file .env với FLASK_SECRET_KEY, ADMIN_EMAIL, ADMIN_PASSWORD (xem mục Biến môi trường)
+python app.py
+```
+
+Mở `http://127.0.0.1:5000` để xem cửa hàng, `http://127.0.0.1:5000/assistant` để thử chatbot (ví dụ: *"Ship Hà Nội bao nhiêu?"*, *"Đổi size trong bao lâu?"*, *"Mình muốn đặt hàng"*), và `http://127.0.0.1:5000/admin` để vào trang quản trị.
+
 ## Tính năng chính
 
 - Trang public: trang chủ, danh sách sản phẩm, chi tiết sản phẩm, nhân vật di sản, giỏ hàng, thanh toán, tra cứu đơn hàng.

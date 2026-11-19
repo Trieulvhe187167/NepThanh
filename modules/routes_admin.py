@@ -1,5 +1,6 @@
 import io
 import json
+import logging
 import os
 from datetime import date, datetime, timedelta
 
@@ -44,6 +45,7 @@ from modules.qr_service import (
 from modules.utils import (
     _build_order_number,
     _generate_qr_png,
+    _get_blob_client,
     _is_allowed_image_filename,
     _normalize_static_path,
     _normalize_product_color,
@@ -51,6 +53,14 @@ from modules.utils import (
     _save_upload,
     _slugify,
 )
+
+LOGGER = logging.getLogger(__name__)
+PRODUCT_STATUSES = {"active", "coming_soon", "hidden", "archived"}
+
+
+def _normalize_product_status(value):
+    status = (value or "active").strip()
+    return status if status in PRODUCT_STATUSES else "active"
 
 
 def _log_action(admin_id, action, entity_type=None, entity_id=None, details=None):
@@ -131,8 +141,16 @@ def _set_primary_product_image(conn, product_id, image_id):
     )
 
 
-def _delete_local_product_upload(image_url):
+def _delete_product_upload(image_url):
     normalized = _normalize_static_path(image_url)
+    if normalized and normalized.startswith(("http://", "https://")):
+        if ".blob.vercel-storage.com/" not in normalized:
+            return
+        try:
+            _get_blob_client().delete(normalized)
+        except Exception:
+            LOGGER.exception("Failed to delete product image blob: %s", normalized)
+        return
     prefix = "uploads/products/"
     if not normalized or not normalized.startswith(prefix):
         return
@@ -206,18 +224,18 @@ def register_admin_routes(app):
         processing_orders = sum(status_map.get(status, 0) for status in PROCESSING_STATUSES)
         completed_orders = status_map.get("completed", 0)
         cancelled_orders = status_map.get("cancelled", 0) + status_map.get("refunded", 0) + status_map.get("returned", 0)
-        top_products = conn.execute(
+        product_sales = conn.execute(
             f"""
             SELECT product_name, SUM(qty) AS qty_sold, SUM(total_price) AS revenue
             FROM order_items
             JOIN orders ON orders.id = order_items.order_id
             WHERE orders.status IN ({status_placeholders})
             GROUP BY product_name
-            ORDER BY qty_sold DESC
-            LIMIT 5
+            ORDER BY qty_sold DESC, product_name ASC
             """,
             (*REVENUE_STATUSES,),
         ).fetchall()
+        total_products_sold = sum(row["qty_sold"] or 0 for row in product_sales)
         low_stock = conn.execute(
             """
             SELECT product_variants.*, products.name AS product_name
@@ -261,7 +279,8 @@ def register_admin_routes(app):
             processing_orders=processing_orders,
             completed_orders=completed_orders,
             cancelled_orders=cancelled_orders,
-            top_products=top_products,
+            product_sales=product_sales,
+            total_products_sold=total_products_sold,
             low_stock=low_stock,
             chart_labels=json.dumps(chart_labels),
             chart_orders=json.dumps(chart_orders),
@@ -321,7 +340,7 @@ def register_admin_routes(app):
             seo_description = request.form.get("seo_description", "").strip()
             base_price = _parse_int(request.form.get("base_price"), 0)
             character_id = _parse_int(request.form.get("character_id"))
-            status = request.form.get("status", "active")
+            status = _normalize_product_status(request.form.get("status", "active"))
             is_featured = 1 if request.form.get("is_featured") else 0
             collection = request.form.get("collection", "").strip() or None
             category_ids = [cid for cid in (_parse_int(cid) for cid in request.form.getlist("category_ids")) if cid]
@@ -399,7 +418,7 @@ def register_admin_routes(app):
             seo_description = request.form.get("seo_description", "").strip()
             base_price = _parse_int(request.form.get("base_price"), 0)
             character_id = _parse_int(request.form.get("character_id"))
-            status = request.form.get("status", "active")
+            status = _normalize_product_status(request.form.get("status", "active"))
             is_featured = 1 if request.form.get("is_featured") else 0
             collection = request.form.get("collection", "").strip() or None
             category_ids = [cid for cid in (_parse_int(cid) for cid in request.form.getlist("category_ids")) if cid]
@@ -486,7 +505,7 @@ def register_admin_routes(app):
             conn.close()
             abort(404)
         size = request.form.get("size", "").strip() or "Free"
-        color = request.form.get("color", "").strip() or "black"
+        color = _normalize_product_color(request.form.get("color", "")) or "black"
         sku = request.form.get("sku", "").strip() or f"{product['slug']}-{size}-{color}".upper()
         price = request.form.get("price")
         stock_qty = _parse_int(request.form.get("stock_qty"), 0)
@@ -536,7 +555,7 @@ def register_admin_routes(app):
             conn.close()
             abort(404)
         size = request.form.get("size", "").strip() or "Free"
-        color = request.form.get("color", "").strip() or "black"
+        color = _normalize_product_color(request.form.get("color", "")) or "black"
         sku = request.form.get("sku", "").strip() or variant["sku"]
         price = request.form.get("price")
         stock_qty = _parse_int(request.form.get("stock_qty"), 0)
@@ -638,7 +657,7 @@ def register_admin_routes(app):
         if file_storage and _is_allowed_image_filename(file_storage.filename):
             saved = _save_upload(file_storage, "products")
             if saved:
-                _delete_local_product_upload(image["url"])
+                _delete_product_upload(image["url"])
                 url = saved
         conn.execute(
             "UPDATE product_images SET url = ?, alt_text = ?, sort_order = ?, color = ? WHERE id = ?",
@@ -673,7 +692,7 @@ def register_admin_routes(app):
         conn.commit()
         invalidate_content_cache()
         conn.close()
-        _delete_local_product_upload(image["url"])
+        _delete_product_upload(image["url"])
         return redirect(url_for("admin_product_edit", product_id=image["product_id"]))
 
     @app.route("/admin/categories", methods=["GET", "POST"])

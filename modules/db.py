@@ -10,7 +10,7 @@ try:
 except ImportError:
     libsql = None
 
-from modules.config import DB_PATH, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL, USE_TURSO
+from modules.config import BASE_DIR, DB_PATH, TURSO_AUTH_TOKEN, TURSO_DATABASE_URL, USE_TURSO
 
 
 if USE_TURSO and libsql is None:
@@ -33,7 +33,106 @@ _TURSO_SYNC_INTERVAL_SECONDS = max(
     int((os.environ.get("TURSO_SYNC_INTERVAL_SECONDS") or "15").strip() or "15"),
 )
 _LAST_TURSO_SYNC_AT = 0.0
-_SCHEMA_BOOTSTRAP_VERSION = "2026-05-31-product-image-colors"
+_SCHEMA_BOOTSTRAP_VERSION = "2026-06-22-beige-shirt-color-images"
+
+STATIC_PRODUCT_IMAGES = (
+    {
+        "product_slug": "ao-co-cheo",
+        "url": "images/shirt/co_cheo_black.jpg",
+        "color": "black",
+        "sort_order": 0,
+        "is_primary": 1,
+        "alt_text": "Co Cheo black shirt",
+    },
+    {
+        "product_slug": "ao-anh-hai",
+        "url": "images/shirt/anh_hai_black.png",
+        "color": "black",
+        "sort_order": 10,
+        "is_primary": 0,
+        "alt_text": "Anh Hai black shirt",
+    },
+    {
+        "product_slug": "ao-chang-khen",
+        "url": "images/shirt/chang_khen_black.jpg",
+        "color": "black",
+        "sort_order": 0,
+        "is_primary": 1,
+        "alt_text": "Chang Khen black shirt",
+    },
+    {
+        "product_slug": "ao-chang-khen",
+        "url": "images/shirt/chang_khen_white.jpg",
+        "color": "white",
+        "sort_order": 20,
+        "is_primary": 0,
+        "alt_text": "Chang Khen white shirt",
+    },
+    {
+        "product_slug": "ao-chang-khen",
+        "url": "images/shirt/chang_khen_be.jpg",
+        "color": "beige",
+        "sort_order": 30,
+        "is_primary": 0,
+        "alt_text": "Chang Khen beige shirt",
+    },
+    {
+        "product_slug": "ao-chu-xam",
+        "url": "images/shirt/chu_xam_white.png",
+        "color": "white",
+        "sort_order": 10,
+        "is_primary": 0,
+        "alt_text": "Chu Xam white shirt",
+    },
+    {
+        "product_slug": "ao-co-cheo",
+        "url": "images/shirt/co_cheo_white.jpg",
+        "color": "white",
+        "sort_order": 20,
+        "is_primary": 0,
+        "alt_text": "Co Cheo white shirt",
+    },
+    {
+        "product_slug": "ao-co-cheo",
+        "url": "images/shirt/co_cheo_be.png",
+        "color": "beige",
+        "sort_order": 30,
+        "is_primary": 0,
+        "alt_text": "Co Cheo beige shirt",
+    },
+    {
+        "product_slug": "ao-nang-then",
+        "url": "images/shirt/nang_then_black.jpg",
+        "color": "black",
+        "sort_order": 0,
+        "is_primary": 1,
+        "alt_text": "Nang Then black shirt",
+    },
+    {
+        "product_slug": "ao-nang-then",
+        "url": "images/shirt/nang_then_white.jpg",
+        "color": "white",
+        "sort_order": 20,
+        "is_primary": 0,
+        "alt_text": "Nang Then white shirt",
+    },
+    {
+        "product_slug": "ao-nang-then",
+        "url": "images/shirt/nang_then_be.jpg",
+        "color": "beige",
+        "sort_order": 30,
+        "is_primary": 0,
+        "alt_text": "Nang Then beige shirt",
+    },
+    {
+        "product_slug": "ao-be-roi",
+        "url": "images/shirt/mua_roi_white.png",
+        "color": "white",
+        "sort_order": 10,
+        "is_primary": 0,
+        "alt_text": "Be Roi white shirt",
+    },
+)
 
 
 class ManagedConnection:
@@ -138,17 +237,41 @@ def _normalize_row(row, description):
 
 def _get_db():
     if USE_TURSO:
-        conn = libsql.connect(
-            DB_PATH,
-            sync_url=TURSO_DATABASE_URL,
-            auth_token=TURSO_AUTH_TOKEN,
-        )
+        conn = _connect_turso()
         _maybe_sync_turso(conn)
     else:
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     return ManagedConnection(conn, sync_enabled=USE_TURSO)
+
+
+def _connect_turso():
+    try:
+        return libsql.connect(
+            DB_PATH,
+            sync_url=TURSO_DATABASE_URL,
+            auth_token=TURSO_AUTH_TOKEN,
+        )
+    except ValueError as exc:
+        if "invalid local state" not in str(exc).lower():
+            raise
+        _remove_turso_replica_files(DB_PATH)
+        return libsql.connect(
+            DB_PATH,
+            sync_url=TURSO_DATABASE_URL,
+            auth_token=TURSO_AUTH_TOKEN,
+        )
+
+
+def _remove_turso_replica_files(path):
+    for suffix in ("", "-shm", "-wal", "-info"):
+        candidate = f"{path}{suffix}"
+        try:
+            if os.path.exists(candidate):
+                os.remove(candidate)
+        except OSError:
+            pass
 
 
 def _maybe_sync_turso(conn, force=False):
@@ -703,10 +826,142 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_product_images_color_order ON product_images(product_id, color, sort_order, id)"
     )
 
+    _ensure_static_product_images(conn)
     _set_setting(conn, "_schema_bootstrap_version", _SCHEMA_BOOTSTRAP_VERSION)
     _ensure_admin_user(conn)
     conn.commit()
     conn.close()
+
+
+def _static_product_image_file_exists(url):
+    if not url or "://" in url:
+        return True
+    clean_url = url.strip().replace("\\", "/")
+    if clean_url.startswith("/static/"):
+        clean_url = clean_url[len("/static/"):]
+    elif clean_url.startswith("static/"):
+        clean_url = clean_url[len("static/"):]
+    return os.path.isfile(os.path.join(BASE_DIR, "static", *clean_url.lstrip("/").split("/")))
+
+
+def _missing_static_product_image(row):
+    return row is not None and not _static_product_image_file_exists(row["url"])
+
+
+def _find_stale_product_image(conn, product_id, color, prefer_primary=False):
+    rows = conn.execute(
+        """
+        SELECT id, url, is_primary
+        FROM product_images
+        WHERE product_id = ?
+          AND COALESCE(color, '') = COALESCE(?, '')
+        ORDER BY is_primary DESC, sort_order, id
+        """,
+        (product_id, color),
+    ).fetchall()
+    for row in rows:
+        if _missing_static_product_image(row):
+            return row
+    if not prefer_primary:
+        return None
+    primary = conn.execute(
+        """
+        SELECT id, url, is_primary
+        FROM product_images
+        WHERE product_id = ? AND is_primary = 1
+        ORDER BY sort_order, id
+        LIMIT 1
+        """,
+        (product_id,),
+    ).fetchone()
+    if _missing_static_product_image(primary):
+        return primary
+    return None
+
+
+def _should_make_static_image_primary(conn, product_id, image):
+    if not image["is_primary"]:
+        return False
+    current_primary = conn.execute(
+        """
+        SELECT id, url, is_primary
+        FROM product_images
+        WHERE product_id = ? AND is_primary = 1
+        ORDER BY sort_order, id
+        LIMIT 1
+        """,
+        (product_id,),
+    ).fetchone()
+    return current_primary is None or _missing_static_product_image(current_primary)
+
+
+def _set_static_product_image_primary(conn, product_id, image_id):
+    conn.execute("UPDATE product_images SET is_primary = 0 WHERE product_id = ?", (product_id,))
+    conn.execute(
+        "UPDATE product_images SET is_primary = 1 WHERE id = ? AND product_id = ?",
+        (image_id, product_id),
+    )
+
+
+def _ensure_static_product_images(conn):
+    for image in STATIC_PRODUCT_IMAGES:
+        absolute_path = os.path.join(BASE_DIR, "static", *image["url"].split("/"))
+        if not os.path.isfile(absolute_path):
+            continue
+        product = conn.execute(
+            "SELECT id FROM products WHERE slug = ?",
+            (image["product_slug"],),
+        ).fetchone()
+        if product is None:
+            continue
+        exists = conn.execute(
+            "SELECT id FROM product_images WHERE product_id = ? AND url = ?",
+            (product["id"], image["url"]),
+        ).fetchone()
+        should_be_primary = _should_make_static_image_primary(conn, product["id"], image)
+        if exists is not None:
+            if should_be_primary:
+                _set_static_product_image_primary(conn, product["id"], exists["id"])
+            continue
+        stale_image = _find_stale_product_image(
+            conn,
+            product["id"],
+            image["color"],
+            prefer_primary=bool(image["is_primary"]),
+        )
+        if stale_image is not None:
+            conn.execute(
+                """
+                UPDATE product_images
+                SET url = ?, alt_text = ?, sort_order = ?, color = ?
+                WHERE id = ?
+                """,
+                (
+                    image["url"],
+                    image["alt_text"],
+                    image["sort_order"],
+                    image["color"],
+                    stale_image["id"],
+                ),
+            )
+            if should_be_primary or stale_image["is_primary"]:
+                _set_static_product_image_primary(conn, product["id"], stale_image["id"])
+            continue
+        is_primary = 1 if should_be_primary else 0
+        conn.execute(
+            """
+            INSERT INTO product_images (product_id, url, alt_text, sort_order, color, is_primary)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (
+                product["id"],
+                image["url"],
+                image["alt_text"],
+                image["sort_order"],
+                image["color"],
+                is_primary,
+            ),
+        )
 
 
 def _ensure_admin_user(conn):

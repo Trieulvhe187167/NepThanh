@@ -11,6 +11,12 @@ from werkzeug.utils import secure_filename
 from modules.config import BASE_DIR, UPLOAD_DIR
 
 IMAGE_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".gif")
+BLOB_READ_WRITE_TOKEN_ENV_VARS = (
+    "NEP_THANH_2_BLOB_READ_WRITE_TOKEN",
+    "NEP_THANH_BLOB_READ_WRITE_TOKEN",
+    "BLOB_READ_WRITE_TOKEN",
+    "VERCEL_BLOB_READ_WRITE_TOKEN",
+)
 PRODUCT_COLOR_DETAILS = {
     "black": {"label": "Đen", "css": "#111111"},
     "white": {"label": "Trắng", "css": "#ffffff"},
@@ -115,6 +121,11 @@ def _normalize_product_color(value):
         "vang": "yellow",
         "hong": "pink",
         "xam": "gray",
+        "be": "beige",
+        "mau-be": "beige",
+        "beige": "beige",
+        "cream": "beige",
+        "kem": "beige",
     }
     return aliases.get(key, key)
 
@@ -163,13 +174,36 @@ def _save_upload(file_storage, subdir):
     filename = secure_filename(file_storage.filename)
     if not filename:
         return None
+    unique = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}_{filename}"
+    if os.environ.get("VERCEL"):
+        blob = _get_blob_client().put(
+            f"{subdir}/{unique}",
+            file_storage.read(),
+            access="public",
+        )
+        return blob.url
+
     target_dir = os.path.join(UPLOAD_DIR, subdir)
     os.makedirs(target_dir, exist_ok=True)
-    unique = f"{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{secrets.token_hex(3)}_{filename}"
     path = os.path.join(target_dir, unique)
     file_storage.save(path)
     rel_path = os.path.relpath(path, os.path.join(BASE_DIR, "static"))
     return rel_path.replace("\\", "/")
+
+
+def _get_blob_read_write_token():
+    for env_name in BLOB_READ_WRITE_TOKEN_ENV_VARS:
+        token = (os.environ.get(env_name) or "").strip().strip('"').strip("'")
+        if token:
+            return token
+    env_names = ", ".join(BLOB_READ_WRITE_TOKEN_ENV_VARS)
+    raise RuntimeError(f"One of {env_names} is required for Vercel Blob uploads.")
+
+
+def _get_blob_client():
+    from vercel.blob import BlobClient
+
+    return BlobClient(token=_get_blob_read_write_token())
 
 
 def _hash_ip(ip_address):
@@ -190,9 +224,30 @@ def _generate_qr_png(data):
 
 
 def _safe_next_url(value):
-    if value and value.startswith("/"):
-        return value
-    return None
+    if not value:
+        return None
+    value = value.strip()
+    for _ in range(5):
+        decoded = urllib.parse.unquote(value)
+        if decoded == value:
+            break
+        value = decoded
+    parsed = urllib.parse.urlparse(value)
+    if parsed.scheme or parsed.netloc or not value.startswith("/") or value.startswith("//"):
+        return None
+    blocked = {
+        "/login",
+        "/signup",
+        "/logout",
+        "/auth/google",
+        "/auth/google/callback",
+    }
+    path = parsed.path or "/"
+    if path in blocked or path.startswith("/auth/"):
+        return None
+    if parsed.query:
+        return f"{path}?{parsed.query}"
+    return path
 
 
 def _safe_background_url(candidate):

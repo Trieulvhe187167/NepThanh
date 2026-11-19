@@ -5,6 +5,7 @@ import time
 from modules.config import BASE_DIR
 from modules.db import _get_db
 from modules.promotions import (
+    active_promotion_cache_signature,
     apply_promotion_to_price,
     best_promotion_for_price,
     get_product_promotion_map,
@@ -26,25 +27,25 @@ _CONTENT_CACHE = {}
 
 CHARACTER_BLOB_ASSETS = {
     "anh-hai": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/anh-hai-v2.glb",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/anhhai-v3.glb",
     },
     "be-roi": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/be-roi.glb",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/be-roi.glb",
     },
     "chang-khen": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/chang-khen.glb",
-        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/chang-khen.mp4",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/changkhenv2.glb",
+        "intro_video": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/videos/changkhen_v2.mp4",
     },
     "co-cheo": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/co-cheo-v2.glb",
-        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/co-cheo.mp4",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/cocheo-v4-s2.glb",
+        "intro_video": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/videos/cocheo_cc3.mp4",
     },
     "nang-then": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/nang-then.glb",
-        "intro_video": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/videos/nang-then-v2.mp4",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/nang-then-v2.glb",
+        "intro_video": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/videos/nangthen_V3.mp4",
     },
     "chu-xam": {
-        "model": "https://ly2wmvyx1bvvtt8w.public.blob.vercel-storage.com/characters/models/chu-xam-x2.glb",
+        "model": "https://orrtnvht4or15ro0.public.blob.vercel-storage.com/characters/models/chu-xam.glb",
     },
 }
 
@@ -319,6 +320,13 @@ def _map_product(row, image_url, promotions=None):
     regular_price = row["base_price"] or 0
     promotion = best_promotion_for_price(regular_price, promotions or [])
     sale_price = apply_promotion_to_price(regular_price, promotion)
+    status = row["status"] or "active"
+    status_labels = {
+        "active": "Đang bán",
+        "coming_soon": "Coming soon",
+        "hidden": "Ẩn",
+        "archived": "Lưu trữ",
+    }
     product = {
         "id": row["id"],
         "slug": row["slug"],
@@ -333,7 +341,10 @@ def _map_product(row, image_url, promotions=None):
         "image": image,
         "short_description": row["description"] or "",
         "long_description": row["long_description"] if "long_description" in row.keys() else "",
-        "status": row["status"],
+        "status": status,
+        "status_label": status_labels.get(status, status),
+        "is_purchasable": status == "active",
+        "is_coming_soon": status == "coming_soon",
         "is_featured": row["is_featured"] if "is_featured" in row.keys() else 0,
         "collection": row["collection"] if "collection" in row.keys() else None,
     }
@@ -376,6 +387,12 @@ def load_characters():
 
 
 def load_products():
+    conn = _get_db()
+    try:
+        promotion_signature = active_promotion_cache_signature(conn)
+    finally:
+        conn.close()
+
     def loader():
         conn = _get_db()
         products = conn.execute(
@@ -383,8 +400,14 @@ def load_products():
             SELECT p.*, c.slug AS character_slug
             FROM products p
             LEFT JOIN characters c ON c.id = p.character_id
-            WHERE p.status = 'active'
-            ORDER BY p.id
+            WHERE p.status IN ('active', 'coming_soon')
+            ORDER BY
+                CASE p.status
+                    WHEN 'active' THEN 0
+                    WHEN 'coming_soon' THEN 1
+                    ELSE 2
+                END,
+                p.id
             """
         ).fetchall()
         image_rows = conn.execute(
@@ -403,10 +426,16 @@ def load_products():
             for row in products
         ]
 
-    return _get_cached_content("products_active", loader)
+    return _get_cached_content(f"products_active:{promotion_signature}", loader)
 
 
 def load_all_products():
+    conn = _get_db()
+    try:
+        promotion_signature = active_promotion_cache_signature(conn)
+    finally:
+        conn.close()
+
     def loader():
         conn = _get_db()
         products = conn.execute(
@@ -433,4 +462,4 @@ def load_all_products():
             for row in products
         ]
 
-    return _get_cached_content("products_all", loader)
+    return _get_cached_content(f"products_all:{promotion_signature}", loader)
